@@ -1,0 +1,3592 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>BUDDICA 車両チェック</title>
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="車両チェック">
+<meta name="theme-color" content="#1a2e48">
+<!-- Supabase -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<style>
+/* ===== ログイン画面（2ステップ）===== */
+#login{background:linear-gradient(160deg,#0f1e34,#1a2e48);justify-content:center;align-items:center;overflow-y:auto;}
+.login-inner{width:100%;padding:0 28px;display:flex;flex-direction:column;align-items:center;gap:0;}
+.login-logo{font-size:11px;font-weight:900;letter-spacing:4px;color:#4488cc;margin-bottom:12px;}
+.login-title{font-size:24px;font-weight:800;color:#fff;margin-bottom:6px;text-align:center;}
+.login-sub{font-size:12px;color:#6688aa;margin-bottom:32px;text-align:center;}
+/* STEP1: 店舗選択 */
+.store-sel-wrap{display:flex;flex-direction:column;gap:14px;width:100%;margin-bottom:16px;}
+.store-sel-card{padding:22px 20px;border-radius:16px;border:2px solid #2a4060;background:#162840;color:#cce0ff;font-size:18px;font-weight:800;cursor:pointer;text-align:center;transition:all .18s;display:flex;align-items:center;gap:14px;}
+.store-sel-card:active{background:#1e3a5f;border-color:#4488cc;}
+.store-sel-card .store-icon{font-size:28px;}
+.store-sel-card .store-info{text-align:left;}
+.store-sel-card .store-name{font-size:16px;font-weight:800;color:#fff;}
+.store-sel-card .store-sub{font-size:11px;color:#6688aa;margin-top:2px;}
+/* STEP2: スタッフ選択 */
+.login-step2{display:none;width:100%;flex-direction:column;align-items:center;}
+.login-step2.active{display:flex;}
+.login-back{align-self:flex-start;margin-bottom:16px;background:none;border:none;color:#6688aa;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:4px;padding:0;}
+.login-store-badge{margin-bottom:20px;padding:8px 18px;border-radius:20px;background:#1e3a5f;border:1.5px solid #4488cc;color:#88ccff;font-size:13px;font-weight:700;}
+.login-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;margin-bottom:16px;}
+.login-btn{padding:18px 10px;border-radius:14px;border:1.5px solid #2a4060;background:#162840;color:#cce0ff;font-size:15px;font-weight:700;cursor:pointer;text-align:center;transition:all .18s;display:flex;flex-direction:column;align-items:center;gap:5px;}
+.login-btn:active{background:#1e3a5f;border-color:#4488cc;}
+.login-btn .avatar{width:36px;height:36px;border-radius:50%;background:#2a4a70;display:flex;align-items:center;justify-content:center;font-size:16px;margin-bottom:2px;}
+
+/* ===== グローバルリセット & ライトテーマ ===== */
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{width:100%;height:100%;overflow:hidden;background:#eef2f7;font-family:-apple-system,'Helvetica Neue',sans-serif;color:#1a2840;}
+.screen{
+  position:fixed;inset:0;display:flex;flex-direction:column;
+  opacity:0;pointer-events:none;transition:opacity .28s;overflow:hidden;
+  max-width:520px;margin:0 auto;
+  box-shadow:0 0 0 100vw #d0dce8;
+  background:#f2f6fb;
+}
+.screen.active{opacity:1;pointer-events:all;}
+.back-btn{width:36px;height:36px;border-radius:10px;background:#e0e8f4;border:1px solid #c8d8ea;color:#1a2840;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.btn-primary{width:100%;padding:17px;border-radius:14px;border:none;font-size:16px;font-weight:700;cursor:pointer;}
+.btn-green{background:linear-gradient(135deg,#00aa55,#007733);color:#fff;box-shadow:0 6px 20px #00aa5530;}
+.btn-blue{background:linear-gradient(135deg,#2266dd,#1144bb);color:#fff;box-shadow:0 6px 20px #2266dd30;}
+.btn-ghost{width:100%;padding:15px;border-radius:14px;background:#ffffff;border:1.5px solid #d0dcec;color:#335588;font-size:14px;font-weight:600;cursor:pointer;}
+.pin-r{width:28px;height:28px;border-radius:50%;border:1.5px solid;display:flex;align-items:center;justify-content:center;animation:pRing 2.2s ease-in-out infinite;}
+@keyframes pRing{0%,100%{transform:scale(1);}50%{transform:scale(1.18);}}
+.pin-c{width:8px;height:8px;border-radius:50%;}
+
+/* ===== SM: マスタ ===== */
+#sm{background:#f2f6fb;}
+.sm-hd{padding:52px 20px 14px;border-bottom:1px solid #d8e4f0;background:linear-gradient(180deg,#1a2e48,#1e3354);}
+.sm-hd-top{display:flex;justify-content:space-between;margin-bottom:6px;}
+.sm-logo{font-size:9px;font-weight:900;letter-spacing:3px;color:#88bbdd;}
+.sm-hd .sm-hd-top+*,.sm-hd>div:not(.sm-hd-top){color:#fff;}
+.sm-list{flex:1;overflow-y:auto;padding:10px 16px max(calc(env(safe-area-inset-bottom) + 60px),80px);-webkit-overflow-scrolling:touch;touch-action:pan-y;}
+.sm-card{background:#ffffff;border:1px solid #dde8f4;border-radius:14px;margin-bottom:9px;padding:0;display:flex;flex-direction:column;cursor:default;transition:box-shadow .15s;overflow:hidden;box-shadow:0 2px 8px rgba(30,50,100,.06);user-select:none;}
+.sm-card-top{display:flex;align-items:center;padding:13px 10px 10px 0;cursor:default;}
+.sm-card-top:active{background:#f0f5fc;}
+.sm-card-actions{display:flex;gap:6px;padding:0 12px 12px;border-top:1px solid #eef2f8;padding-top:10px;}
+.sm-stripe{width:4px;flex-shrink:0;margin-right:12px;align-self:stretch;}
+.st-returning .sm-stripe{background:#ff4444;}
+.st-out .sm-stripe{background:#ff8800;}
+.st-ready .sm-stripe{background:#00aa55;}
+.st-maintenance .sm-stripe{background:#3366ee;}
+.sm-thumb{width:68px;height:40px;background:#eef2f7;border-radius:8px;flex-shrink:0;margin-right:11px;align-self:center;border:1px solid #d0dce8;}
+.sm-thumb svg{width:100%;height:100%;}
+.sm-info{flex:1;}
+.sm-vno{font-size:14px;font-weight:700;margin-bottom:1px;color:#1a2840;}
+.sm-model{font-size:10px;color:#7799bb;margin-bottom:4px;font-family:monospace;}
+.sm-status-row{display:flex;gap:5px;flex-wrap:wrap;}
+.sm-badge{font-size:9px;padding:3px 8px;border-radius:8px;font-weight:700;border:1px solid;}
+.sm-dmg{font-size:9px;color:#8899bb;background:#eef2f8;padding:2px 6px;border-radius:6px;}
+.sm-arr{color:#b0c4dd;font-size:18px;align-self:center;padding-right:2px;flex-shrink:0;}
+/* カード内アクションボタン */
+.sm-act-btn{flex:1;padding:8px 2px;border-radius:10px;font-size:11px;font-weight:700;cursor:pointer;text-align:center;touch-action:manipulation;-webkit-tap-highlight-color:transparent;border:1.5px solid;transition:opacity .15s;}
+.sm-act-btn:active{opacity:.7;}
+.sm-act-edit{border-color:#4488cc;background:#eef4fc;color:#2266cc;}
+.sm-act-checkout{border-color:#00aa66;background:#edfaf4;color:#007744;}
+.sm-act-return{border-color:#ff8800;background:#fff4e6;color:#994400;}
+.sm-act-init{flex:1;border-color:#cc8800;background:#fff8e6;color:#664400;}
+.sm-stats{display:flex;gap:6px;padding:10px 16px 6px;}
+/* クラスグループヘッダー */
+.sm-class-hd{display:flex;align-items:center;gap:8px;padding:14px 2px 6px;margin-bottom:2px;}
+.sm-class-badge{font-size:11px;font-weight:900;letter-spacing:1px;padding:3px 10px;border-radius:8px;background:#1a2e48;color:#88ccff;border:1px solid #2a4a70;}
+.sm-class-name{font-size:12px;color:#6688aa;font-weight:600;}
+.sm-class-count{font-size:10px;color:#4466aa;background:#e8f0fa;padding:2px 7px;border-radius:6px;margin-left:auto;}
+/* クラスバッジ（カード内） */
+.sm-class-tag{font-size:9px;font-weight:800;padding:2px 6px;border-radius:5px;background:#e8f0fa;color:#4466aa;margin-left:4px;}
+.ssp{flex:1;background:#ffffff;border:1px solid #dde8f4;border-radius:10px;padding:7px 6px;text-align:center;box-shadow:0 1px 4px rgba(30,50,100,.05);}
+.ssp-n{font-size:17px;font-weight:800;color:#1a2840;}
+.ssp-l{font-size:8px;color:#8899bb;margin-top:1px;}
+
+/* ===== S0: 車両詳細 ===== */
+#s0{background:#f2f6fb;}
+.s0-hd{padding:14px 16px 10px;display:flex;justify-content:space-between;align-items:flex-start;background:linear-gradient(180deg,#1a2e48 0%,#1a2e48 80%,#f2f6fb 100%);}
+.s0-vno{font-size:22px;font-weight:800;margin-bottom:1px;color:#ffffff;}
+.s0-model{font-size:10px;color:#88aaccaa;font-family:monospace;}
+.s0-car{margin:0 16px 0;background:#ffffff;border:1px solid #dde8f4;border-radius:16px;overflow:hidden;box-shadow:0 4px 16px rgba(30,50,100,.1);}
+.s0-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;}
+.s0-car-view{position:relative;width:100%;height:clamp(260px,48vh,440px);background:#e8f0f6;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.s0-car-view svg{width:100%;height:100%;}
+.insp-zone{cursor:default;transition:opacity .2s;}
+.insp-zone.has-dmg{opacity:1;}
+.ipin{position:absolute;transform:translate(-50%,-50%);pointer-events:none;}
+.ipin-r{width:22px;height:22px;border-radius:50%;border:2px solid;display:flex;align-items:center;justify-content:center;animation:pRing 2.2s ease-in-out infinite;}
+.ipin-c{width:7px;height:7px;border-radius:50%;}
+.ipin-lbl{position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);white-space:nowrap;font-size:7px;font-weight:700;background:#1a2840ee;color:#fff;padding:2px 5px;border-radius:4px;}
+.s0-insp-legend{display:flex;flex-wrap:wrap;gap:5px;padding:8px 12px;border-top:1px solid #e0eaf6;background:#f8fafd;}
+.insp-leg{display:flex;align-items:center;gap:4px;font-size:9px;color:#5577aa;}
+.insp-leg-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;}
+.s0-stats-row{display:flex;padding:9px 14px 10px;background:#fff;}
+.s0-stat{flex:1;text-align:center;border-right:1px solid #e8f0f8;}
+.s0-stat:last-child{border-right:none;}
+.s0-stat .k{font-size:9px;color:#8899bb;display:block;margin-bottom:2px;}
+.s0-stat .v{font-size:13px;font-weight:700;color:#1a2840;}
+.dmg-pin{position:absolute;transform:translate(-50%,-50%);cursor:default;animation:pRing 2.2s ease-in-out infinite;}
+.dmg-pin-r{width:24px;height:24px;border-radius:50%;border:1.5px solid;display:flex;align-items:center;justify-content:center;}
+.dmg-pin-c{width:7px;height:7px;border-radius:50%;}
+.s0-chips{display:flex;flex-wrap:wrap;gap:5px;margin:10px 16px 0;}
+.chip{font-size:10px;padding:4px 10px;border-radius:20px;font-weight:600;border:1px solid;}
+.s0-chain-link{margin:10px 16px 0;display:flex;align-items:center;gap:10px;background:#ffffff;border:1px solid #dde8f4;border-radius:12px;padding:11px 14px;cursor:pointer;box-shadow:0 1px 4px rgba(30,50,100,.05);}
+.s0-chain-title{font-size:12px;font-weight:600;color:#2266cc;}
+.s0-chain-sub{font-size:10px;color:#8899bb;margin-top:1px;}
+.s0-actions{margin:auto 16px 0;padding-bottom:max(env(safe-area-inset-bottom),28px);}
+.s0-action-row{display:flex;gap:8px;margin-bottom:10px;}
+.s0-action-row .btn-primary{flex:1;padding:14px;font-size:13px;}
+
+/* ===== ピン（タップで編集） ===== */
+.ipin.clickable{cursor:pointer;pointer-events:all;}
+.ipin.clickable:active .ipin-r{transform:scale(1.25);}
+.ipin.clickable .ipin-r{transition:transform .15s;}
+
+/* ===== 傷ピン編集シート ===== */
+.dmg-edit-overlay{position:fixed;inset:0;background:#00000055;z-index:250;opacity:0;pointer-events:none;transition:opacity .22s;max-width:520px;margin:0 auto;}
+.dmg-edit-overlay.show{opacity:1;pointer-events:all;}
+.dmg-edit-sheet{position:absolute;bottom:0;left:0;right:0;background:#ffffff;border-radius:22px 22px 0 0;padding:20px 20px;padding-bottom:max(env(safe-area-inset-bottom),24px);transform:translateY(100%);transition:transform .32s cubic-bezier(.32,1,.58,1);border-top:1px solid #dde8f4;}
+.dmg-edit-overlay.show .dmg-edit-sheet{transform:translateY(0);}
+.dmg-edit-handle{width:38px;height:4px;border-radius:2px;background:#d0dce8;margin:0 auto 16px;}
+.dmg-edit-loc{font-size:18px;font-weight:800;color:#1a2840;margin-bottom:4px;}
+.dmg-edit-meta{font-size:11px;color:#8899bb;margin-bottom:14px;line-height:1.7;}
+.dmg-edit-photo{width:100%;height:96px;border-radius:10px;background:linear-gradient(135deg,#eef4fc,#dce8f8);border:1px dashed #aaccee;display:flex;align-items:center;justify-content:center;gap:8px;font-size:28px;margin-bottom:14px;cursor:pointer;}
+.dmg-edit-photo-label{font-size:11px;color:#7799bb;font-weight:600;}
+.dmg-edit-btns{display:flex;flex-direction:column;gap:8px;}
+.dmg-del-btn{width:100%;padding:14px;border-radius:12px;border:1.5px solid #ff4444;background:#fff5f5;color:#cc2222;font-size:14px;font-weight:700;cursor:pointer;}
+.dmg-del-btn:active{background:#ffeeee;}
+.dmg-repair-btn{width:100%;padding:14px;border-radius:12px;border:1.5px solid #00aa55;background:#edfaf4;color:#007733;font-size:14px;font-weight:700;cursor:pointer;}
+
+/* ===== 手動編集ボタン ===== */
+.s0-edit-btn{display:flex;align-items:center;justify-content:center;gap:6px;margin:8px 16px 0;padding:10px;border-radius:12px;background:#fff;border:1.5px solid #4488cc;color:#2266cc;font-size:13px;font-weight:700;cursor:pointer;}
+.s0-edit-btn:active{background:#eef4fc;}
+
+/* ===== 確認・汎用モーダル ===== */
+.conf-overlay{position:fixed;inset:0;background:#00000055;z-index:300;opacity:0;pointer-events:none;transition:opacity .22s;max-width:520px;margin:0 auto;}
+.conf-overlay.show{opacity:1;pointer-events:all;}
+.conf-sheet{position:absolute;bottom:0;left:0;right:0;background:#ffffff;border-radius:22px 22px 0 0;padding:20px 20px;padding-bottom:max(env(safe-area-inset-bottom),24px);border-top:1px solid #dde8f4;transform:translateY(100%);transition:transform .32s cubic-bezier(.32,1,.58,1);max-height:85vh;overflow-y:auto;}
+.conf-overlay.show .conf-sheet{transform:translateY(0);}
+.conf-handle{width:38px;height:4px;border-radius:2px;background:#d0dce8;margin:0 auto 16px;}
+
+/* ===== 編集パネル（ゾーン選択 → 傷種別） ===== */
+.edit-overlay{position:fixed;inset:0;background:#00000055;z-index:200;opacity:0;pointer-events:none;transition:opacity .22s;max-width:520px;margin:0 auto;}
+.edit-overlay.show{opacity:1;pointer-events:all;}
+.edit-sheet{position:absolute;bottom:0;left:0;right:0;background:#ffffff;border-radius:22px 22px 0 0;padding:20px 20px;padding-bottom:max(env(safe-area-inset-bottom),24px);border-top:1px solid #dde8f4;transform:translateY(100%);transition:transform .32s cubic-bezier(.32,1,.58,1);max-height:80vh;overflow-y:auto;}
+.edit-overlay.show .edit-sheet{transform:translateY(0);}
+.edit-handle{width:38px;height:4px;border-radius:2px;background:#d0dce8;margin:0 auto 18px;}
+.edit-title{font-size:16px;font-weight:800;color:#1a2840;margin-bottom:4px;}
+.edit-sub{font-size:11px;color:#8899bb;margin-bottom:16px;}
+.edit-section{font-size:10px;font-weight:700;color:#5577aa;letter-spacing:1px;margin-bottom:8px;}
+.edit-zones{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:16px;}
+.edit-zone-btn{padding:9px 10px;border-radius:10px;border:1.5px solid #d0dce8;background:#f8fafd;font-size:12px;font-weight:600;color:#1a2840;cursor:pointer;text-align:left;transition:all .15s;}
+.edit-zone-btn:active,.edit-zone-btn.sel{background:#eef4fc;border-color:#4488cc;color:#2266cc;}
+.edit-types{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:16px;}
+.edit-type-btn{padding:8px 14px;border-radius:20px;border:1.5px solid #d0dce8;background:#f8fafd;font-size:12px;font-weight:600;color:#1a2840;cursor:pointer;transition:all .15s;}
+.edit-type-btn:active,.edit-type-btn.sel{background:#fff3e0;border-color:#ff8800;color:#cc5500;}
+.edit-sev{display:flex;gap:6px;margin-bottom:16px;}
+.edit-sev-btn{flex:1;padding:9px;border-radius:10px;border:1.5px solid;font-size:11px;font-weight:700;cursor:pointer;text-align:center;transition:all .15s;}
+.edit-sev-minor{border-color:#ffcc00;color:#cc9900;background:#fffbe8;}
+.edit-sev-moderate{border-color:#ff8800;color:#cc5500;background:#fff3e0;}
+.edit-sev-major{border-color:#ff3333;color:#cc1111;background:#ffe8e8;}
+.edit-sev-btn.sel{opacity:1;font-size:12px;}
+.edit-sev-btn:not(.sel){opacity:.5;}
+.edit-desc-input{width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid #d0dce8;background:#f8fafd;font-size:13px;color:#1a2840;margin-bottom:16px;font-family:-apple-system,sans-serif;}
+.edit-action-row{display:flex;gap:8px;}
+.edit-ok-btn{flex:2;padding:13px;border-radius:12px;border:none;background:linear-gradient(135deg,#2266dd,#1144bb);color:#fff;font-size:14px;font-weight:700;cursor:pointer;}
+.edit-repair-btn{flex:1;padding:13px;border-radius:12px;border:1.5px solid #00aa55;background:#edfaf4;color:#007733;font-size:13px;font-weight:700;cursor:pointer;}
+.edit-cancel-btn{flex:1;padding:13px;border-radius:12px;border:1.5px solid #d0dce8;background:#fff;color:#5577aa;font-size:13px;font-weight:700;cursor:pointer;}
+
+/* ===== SC: チェーン履歴 ===== */
+#sc{background:#f2f6fb;}
+.sc-hd{padding:52px 20px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #d8e4f0;background:linear-gradient(180deg,#1a2e48,#1e3354);color:#fff;}
+.sc-list{flex:1;overflow-y:auto;padding:16px 16px 40px;}
+.sc-timeline{position:relative;}
+.sc-event{display:flex;gap:14px;margin-bottom:18px;}
+.sc-dot{width:34px;height:34px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid;background:#ffffff;z-index:1;box-shadow:0 2px 8px rgba(30,50,100,.1);}
+.sc-ev-checkout .sc-dot{border-color:#3366ee;}
+.sc-ev-return.has-new .sc-dot{border-color:#ff4444;}
+.sc-ev-return .sc-dot{border-color:#00aa55;}
+.sc-ev-repair .sc-dot{border-color:#3366ee;}
+.sc-ev-initial .sc-dot{border-color:#c0ccdd;}
+.sc-body{flex:1;background:#ffffff;border:1px solid #dde8f4;border-radius:12px;padding:12px;box-shadow:0 1px 6px rgba(30,50,100,.06);}
+.sc-ev-header{display:flex;justify-content:space-between;margin-bottom:5px;}
+.sc-ev-type{font-size:12px;font-weight:700;}
+.sc-ev-checkout .sc-ev-type{color:#3366ee;}
+.sc-ev-return.has-new .sc-ev-type{color:#dd3333;}
+.sc-ev-return .sc-ev-type{color:#00aa55;}
+.sc-ev-date{font-size:10px;color:#99aacc;}
+.sc-ev-detail{font-size:11px;color:#7799bb;line-height:1.6;}
+.sc-ev-new{margin-top:7px;background:#fff0f0;border:1px solid #ffcccc;border-radius:8px;padding:7px 10px;}
+.sc-ev-new-t{font-size:9px;color:#dd3333;font-weight:700;margin-bottom:3px;letter-spacing:.5px;}
+.sc-ev-new-i{font-size:11px;color:#cc4444;line-height:1.6;}
+.sc-now{display:inline-flex;align-items:center;gap:4px;background:#eef4ff;border:1px solid #aaccee;color:#2266cc;font-size:9px;padding:2px 7px;border-radius:7px;font-weight:700;margin-left:5px;}
+
+/* ===== SI: 初期登録専用画面 ===== */
+#si{background:#f2f6fb;}
+.si-hd{padding:52px 20px 14px;display:flex;align-items:flex-start;gap:12px;background:linear-gradient(180deg,#1a2e48,#1e3354);color:#fff;}
+.si-map-wrap{margin:12px 16px 0;background:#fff;border-radius:16px;border:1px solid #dde8f4;overflow:hidden;box-shadow:0 4px 16px rgba(30,50,100,.08);}
+.si-map-view{position:relative;width:100%;height:380px;background:#e8f0f6;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.si-map-view svg{width:100%;height:100%;}
+.si-list-wrap{flex:1;overflow-y:auto;padding:10px 16px 0;}
+.si-section-hd{font-size:10px;font-weight:700;color:#6688aa;letter-spacing:1px;padding:6px 0 6px;display:flex;align-items:center;justify-content:space-between;}
+.si-dmg-row{display:flex;align-items:center;gap:10px;background:#fff;border-radius:12px;border:1px solid #e0e8f4;padding:10px 12px;margin-bottom:7px;}
+.si-dmg-thumb{width:44px;height:44px;border-radius:8px;background:#e8f0f6;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;overflow:hidden;}
+.si-dmg-thumb img{width:100%;height:100%;object-fit:cover;}
+.si-dmg-info{flex:1;min-width:0;}
+.si-dmg-loc{font-size:13px;font-weight:700;color:#1a2840;}
+.si-dmg-meta{font-size:10px;color:#6688aa;margin-top:2px;}
+.si-dmg-del{background:none;border:none;color:#cc4444;font-size:18px;cursor:pointer;padding:4px;flex-shrink:0;}
+.si-bottom{padding:12px 16px;padding-bottom:max(env(safe-area-inset-bottom),20px);background:#fff;border-top:1px solid #e0e8f4;}
+.si-stat{font-size:10px;color:#8899bb;text-align:center;margin-bottom:4px;}
+.si-last-upd{font-size:10px;color:#4488cc;text-align:center;margin-bottom:10px;font-weight:600;}
+.si-empty{text-align:center;padding:28px 0;color:#8899bb;}
+.si-empty-icon{font-size:32px;margin-bottom:8px;}
+
+/* ===== SC0: 出庫チェック（折りたたみ式） ===== */
+#sc0{background:#f2f6fb;}
+.sc0-hd{padding:52px 20px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #d8e4f0;background:linear-gradient(180deg,#1a2e48,#1e3354);color:#fff;}
+.sc0-body{flex:1;overflow-y:auto;padding:0 0 8px;}
+.sc0-customer-banner{background:linear-gradient(135deg,#162d52,#1a3660);margin:12px 16px 4px;padding:12px 14px;border-radius:14px;display:flex;gap:10px;align-items:flex-start;box-shadow:0 2px 10px rgba(20,40,100,.15);}
+.sc0-customer-banner-icon{font-size:22px;flex-shrink:0;margin-top:1px;}
+.sc0-customer-banner-text .title{font-size:12px;font-weight:800;color:#ffffff;margin-bottom:3px;}
+.sc0-customer-banner-text .body{font-size:10px;color:#99bbdd;line-height:1.6;}
+.sc0-section-label{font-size:9px;font-weight:700;color:#8899bb;letter-spacing:1.5px;padding:8px 16px 4px;}
+/* ── アコーディオン ── */
+.sc0-acc{background:#fff;border:1px solid #dde8f4;border-radius:14px;overflow:hidden;margin:0 16px 8px;box-shadow:0 2px 8px rgba(30,50,100,.07);transition:box-shadow .2s;}
+.sc0-acc.open{box-shadow:0 4px 16px rgba(30,50,100,.12);}
+.sc0-acc-hd{display:flex;align-items:center;gap:10px;padding:13px 14px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;}
+.sc0-acc-hd:active{background:#f4f8fc;}
+.sc0-acc-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;box-shadow:0 0 0 3px rgba(0,0,0,.06);}
+.sc0-acc-info{flex:1;min-width:0;}
+.sc0-acc-loc{font-size:13px;font-weight:700;color:#1a2840;}
+.sc0-acc-sub{font-size:10px;color:#8899bb;margin-top:1px;}
+.sc0-acc-right{display:flex;align-items:center;gap:7px;flex-shrink:0;}
+.sc0-acc-status{font-size:9px;font-weight:700;padding:3px 9px;border-radius:8px;border:1px solid #d0dce8;background:#f4f8fc;color:#99aabb;white-space:nowrap;transition:all .2s;}
+.sc0-acc-status.ok{background:#edfaf4;border-color:#00bb5560;color:#007733;}
+.sc0-acc-arrow{font-size:18px;color:#b0c4dd;transition:transform .28s cubic-bezier(.4,0,.2,1);line-height:1;}
+.sc0-acc.open .sc0-acc-arrow{transform:rotate(90deg);}
+/* 展開エリア */
+.sc0-acc-body{max-height:0;overflow:hidden;transition:max-height .36s cubic-bezier(.4,0,.2,1);}
+.sc0-acc.open .sc0-acc-body{max-height:600px;}
+.sc0-acc-photo{width:100%;height:180px;position:relative;overflow:hidden;background:#111;cursor:pointer;display:block;}
+.sc0-acc-photo:active{opacity:.88;}
+.sc0-acc-photo svg{display:block;width:100%;height:100%;}
+.sc0-acc-photo-badge{position:absolute;bottom:8px;left:10px;padding:4px 11px;border-radius:20px;font-size:10px;font-weight:800;color:#fff;pointer-events:none;}
+.sc0-acc-photo-expand{position:absolute;top:8px;right:8px;background:#000000aa;border-radius:7px;padding:4px 9px;font-size:9px;color:#fff;font-weight:700;pointer-events:none;}
+.sc0-acc-detail{padding:10px 14px 0;border-top:1px solid #e8f0f6;}
+.sc0-acc-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:5px;}
+.sc0-acc-tag{font-size:9px;padding:3px 8px;border-radius:7px;font-weight:700;border:1px solid;}
+.sc0-acc-date{font-size:10px;color:#99aabb;margin-bottom:10px;}
+.sc0-acc-confirm-row{display:flex;justify-content:flex-end;padding:8px 14px 12px;}
+.sc0-acc-btn{padding:8px 22px;border-radius:10px;border:1.5px solid #d0dce8;background:#f4f8fc;color:#8899bb;font-size:12px;font-weight:700;cursor:pointer;transition:all .18s;}
+.sc0-acc-btn.confirmed{background:#edfaf4;border-color:#00bb55;color:#007733;}
+/* フッター */
+.sc0-note{background:#fff8ec;border:1px solid #ffd58060;border-radius:12px;padding:11px 14px;font-size:11px;color:#886622;line-height:1.6;margin:4px 16px 8px;}
+.sc0-bottom{padding:10px 16px;padding-bottom:max(env(safe-area-inset-bottom),20px);display:flex;flex-direction:column;gap:9px;background:#f2f6fb;border-top:1px solid #e0eaf6;}
+.sc0-confirm-all-bar{display:flex;align-items:center;gap:8px;font-size:11px;color:#8899bb;padding:0 2px 6px;}
+.sc0-confirm-all-bar .count{font-weight:800;color:#1a2840;font-size:14px;}
+/* ===== 貸出・返却 メイン展開図 ===== */
+.chk-map-main{position:relative;width:100%;height:clamp(320px,55vh,520px);background:#e8f0f6;overflow:hidden;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.chk-map-main svg{width:100%;height:100%;}
+.chk-dmg-list{flex:1;overflow-y:auto;padding:8px 14px;background:#f4f8fc;border-top:1px solid #dde8f4;}
+
+/* ===== SR0: 返却チェック ===== */
+#sr0{background:#f2f6fb;}
+.sr0-hd{padding:52px 20px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #d8e4f0;background:linear-gradient(180deg,#1a2e48,#1e3354);color:#fff;}
+.sr0-body{flex:1;overflow-y:auto;padding:0 0 8px;}
+.sr0-bottom{padding:10px 16px;padding-bottom:max(env(safe-area-inset-bottom),20px);display:flex;flex-direction:column;gap:9px;background:#f2f6fb;border-top:1px solid #e0eaf6;}
+.sr0-confirm-all-bar{display:flex;align-items:center;gap:8px;font-size:11px;color:#8899bb;padding:0 2px 6px;}
+.sr0-confirm-all-bar .count{font-weight:800;color:#1a2840;font-size:14px;}
+/* SR0アコーディオン */
+.sr0-acc{background:#fff;border:1px solid #dde8f4;border-radius:14px;overflow:hidden;margin:0 16px 8px;box-shadow:0 2px 8px rgba(30,50,100,.07);}
+.sr0-acc-hd{display:flex;align-items:center;gap:10px;padding:13px 14px;cursor:pointer;user-select:none;-webkit-tap-highlight-color:transparent;}
+.sr0-acc-hd:active{background:#f4f8fc;}
+.sr0-acc-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0;}
+.sr0-acc-info{flex:1;min-width:0;}
+.sr0-acc-loc{font-size:13px;font-weight:700;color:#1a2840;}
+.sr0-acc-sub{font-size:10px;color:#8899bb;margin-top:1px;}
+.sr0-acc-right{display:flex;align-items:center;gap:7px;flex-shrink:0;}
+.sr0-acc-badge{font-size:9px;font-weight:700;padding:3px 9px;border-radius:8px;border:1px solid #d0dce8;background:#f4f8fc;color:#99aabb;white-space:nowrap;}
+.sr0-acc-arrow{font-size:18px;color:#b0c4dd;transition:transform .28s cubic-bezier(.4,0,.2,1);}
+.sr0-acc.open .sr0-acc-arrow{transform:rotate(90deg);}
+.sr0-acc-body{max-height:0;overflow:hidden;transition:max-height .36s cubic-bezier(.4,0,.2,1);}
+.sr0-acc.open .sr0-acc-body{max-height:640px;}
+/* SR0 写真エリア */
+.sr0-acc-photo{width:100%;height:180px;position:relative;overflow:hidden;background:#111;cursor:pointer;display:block;}
+.sr0-acc-photo img{width:100%;height:100%;object-fit:cover;display:block;}
+.sr0-acc-photo-badge{position:absolute;bottom:8px;left:10px;padding:4px 11px;border-radius:20px;font-size:10px;font-weight:800;color:#fff;}
+/* SR0 ステータスボタン行 */
+.sr0-status-row{display:flex;gap:6px;padding:10px 14px 12px;border-top:1px solid #eef2f8;}
+.sr0-status-btn{flex:1;padding:9px 4px;border-radius:10px;border:1.5px solid #d0dce8;font-size:11px;font-weight:700;cursor:pointer;text-align:center;background:#f8fafd;color:#8899bb;transition:all .15s;}
+.sr0-status-btn.sel-ok{background:#edfaf4;border-color:#00bb55;color:#007733;}
+.sr0-status-btn.sel-worse{background:#fff0ee;border-color:#ff4444;color:#cc2222;}
+.sr0-status-btn.sel-repaired{background:#eef4fc;border-color:#4488cc;color:#2266cc;}
+/* SR0 追加ボタン */
+.sr0-add-btn{margin:4px 16px 8px;padding:13px;border-radius:12px;background:#fff;border:1.5px dashed #4488cc;color:#2266cc;font-size:13px;font-weight:700;cursor:pointer;text-align:center;width:calc(100% - 32px);}
+.sr0-add-btn:active{background:#eef4fc;}
+/* PC/iPad 対応 */
+@media(min-width:768px){.sr0-acc{margin:0 24px 8px;}.sr0-bottom{padding:10px 24px;}.sr0-add-btn{margin:4px 24px 8px;width:calc(100% - 48px);}}
+@media(min-width:1024px){.sr0-acc{margin:0 48px 8px;}.sr0-hd{padding:36px 48px 18px;}.sr0-bottom{padding:10px 48px;}.sr0-body{}.sr0-add-btn{margin:4px 48px 8px;width:calc(100% - 96px);}}
+
+/* ===== 初期登録バナー ===== */
+.s0-init-banner{margin:12px 16px 0;padding:16px;border-radius:14px;background:linear-gradient(135deg,#2a1800,#3a2000);border:1.5px solid #ee880060;display:flex;align-items:flex-start;gap:12px;}
+.s0-init-icon{font-size:28px;flex-shrink:0;margin-top:2px;}
+.s0-init-title{font-size:14px;font-weight:800;color:#ffbb55;margin-bottom:4px;}
+.s0-init-desc{font-size:11px;color:#cc9944;line-height:1.6;}
+.btn-init{width:100%;padding:17px;border-radius:14px;border:none;font-size:16px;font-weight:800;cursor:pointer;background:linear-gradient(135deg,#ee8800,#cc5500);color:#fff;box-shadow:0 6px 20px #ee880040;}
+/* SM 未登録バナー */
+.sm-unreg-banner{margin:8px 16px 0;padding:10px 14px;border-radius:10px;background:#2a1800;border:1px solid #ee880040;display:flex;align-items:center;gap:8px;font-size:12px;color:#ffbb55;font-weight:600;}
+.sm-unreg-count{font-size:18px;font-weight:900;color:#ffcc66;margin-right:2px;}
+/* SM 未登録バッジ */
+.sm-badge-unreg{font-size:9px;padding:2px 7px;border-radius:7px;font-weight:800;background:#3a2000;color:#ffaa33;border:1px solid #ee880050;}
+/* ===== 写真ライトボックス ===== */
+.photo-lb{position:fixed;inset:0;background:#000;z-index:400;opacity:0;pointer-events:none;transition:opacity .25s;max-width:520px;margin:0 auto;display:flex;flex-direction:column;}
+.photo-lb.show{opacity:1;pointer-events:all;}
+.photo-lb-header{padding:52px 16px 10px;display:flex;align-items:center;gap:12px;}
+.photo-lb-close{width:36px;height:36px;border-radius:10px;background:#ffffff18;border:1px solid #ffffff20;color:#fff;font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.photo-lb-hd-info{flex:1;}
+.photo-lb-hd-loc{font-size:16px;font-weight:800;color:#fff;}
+.photo-lb-hd-sub{font-size:10px;color:#8899bb;margin-top:2px;}
+.photo-lb-canvas{flex:1;display:flex;align-items:center;justify-content:center;padding:0 16px;overflow:hidden;}
+.photo-lb-canvas-inner{width:100%;border-radius:16px;overflow:hidden;box-shadow:0 8px 40px #00000080;}
+.photo-lb-footer{padding:16px 20px;padding-bottom:max(env(safe-area-inset-bottom),32px);}
+.photo-lb-desc{font-size:13px;color:#ccd8e8;line-height:1.7;}
+.photo-lb-meta{display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;}
+.photo-lb-tag{font-size:10px;padding:4px 10px;border-radius:8px;border:1px solid #ffffff20;color:#aabbcc;font-weight:700;background:#ffffff08;}
+
+/* ===== マルチユーザー同期UI ===== */
+/* RTドット */
+.rt-dot{width:7px;height:7px;border-radius:50%;background:#446688;display:inline-block;flex-shrink:0;vertical-align:middle;margin-left:4px;transition:background .4s;}
+.rt-dot.live{background:#00dd88;box-shadow:0 0 6px #00dd8866;animation:rtPulse 2.8s ease-in-out infinite;}
+.rt-dot.error{background:#ff5544;}
+@keyframes rtPulse{0%,100%{opacity:1}50%{opacity:.35}}
+/* 在席バッジ（SMカード内） */
+.sm-presence-inline{display:flex;flex-wrap:wrap;gap:3px;margin-top:3px;min-height:0;}
+.sm-presence-dot{font-size:8px;padding:1px 6px;border-radius:7px;background:#0e2040;border:1px solid #4488cc55;color:#88ccff;font-weight:800;}
+/* 同時編集警告（S0） */
+.s0-editing-warn{display:none;margin:6px 16px 0;padding:9px 14px;border-radius:12px;background:#2a1600;border:1.5px solid #ffaa0070;align-items:center;gap:10px;font-size:11px;color:#ffcc66;font-weight:600;}
+/* 更新通知バナー（全画面上部） */
+.update-banner{position:fixed;top:0;left:0;right:0;z-index:750;background:linear-gradient(90deg,#0e2040,#1a3a6a);color:#88ccff;font-size:11px;font-weight:700;padding:11px 16px 11px 14px;display:flex;align-items:center;gap:10px;max-width:520px;margin:0 auto;transform:translateY(-100%);transition:transform .32s cubic-bezier(.32,1,.58,1);border-bottom:1px solid #4488cc40;pointer-events:none;}
+.update-banner.show{transform:translateY(0);}
+/* ヘッダー内リロードボタン共通 */
+.hd-reload-btn{background:none;border:1px solid #ffffff22;color:#7799bb;font-size:11px;width:30px;height:30px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:background .15s;}
+.hd-reload-btn:active{background:#ffffff18;}
+/* SMカード position:relative for presence */
+.sm-card{position:relative;}
+
+/* ===== SRP: 修理管理ページ ===== */
+#srp{background:#f2f6fb;}
+.srp-hd{padding:52px 20px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #d8e4f0;background:linear-gradient(180deg,#2a1600,#3a2000);color:#fff;}
+.srp-body{flex:1;overflow-y:auto;padding:12px 16px max(calc(env(safe-area-inset-bottom)+20px),36px);}
+.srp-section-hd{font-size:10px;font-weight:800;letter-spacing:1.5px;color:#886633;margin:16px 0 8px;display:flex;align-items:center;gap:8px;}
+.srp-dmg-card{background:#fff;border:1px solid #dde8f4;border-radius:14px;margin-bottom:8px;overflow:hidden;box-shadow:0 2px 8px rgba(30,50,100,.06);}
+.srp-dmg-hd{display:flex;align-items:center;gap:10px;padding:12px 14px;}
+.srp-dmg-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.srp-dmg-info{flex:1;}
+.srp-dmg-loc{font-size:13px;font-weight:700;color:#1a2840;}
+.srp-dmg-meta{font-size:10px;color:#8899bb;margin-top:2px;}
+.srp-repair-btn{padding:8px 14px;border-radius:10px;border:1.5px solid #ee8800;background:#fff8e6;color:#884400;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;touch-action:manipulation;}
+.srp-repair-btn:active{background:#ffeecc;}
+.srp-hist-card{background:#fff;border:1px solid #e0e8f4;border-radius:12px;padding:12px 14px;margin-bottom:7px;}
+.srp-hist-loc{font-size:12px;font-weight:700;color:#1a2840;margin-bottom:4px;}
+.srp-hist-row{display:flex;gap:8px;flex-wrap:wrap;}
+.srp-hist-tag{font-size:10px;padding:3px 8px;border-radius:7px;background:#f0f5fa;border:1px solid #d8e4f0;color:#5577aa;font-weight:600;}
+.srp-hist-amt{font-size:13px;font-weight:800;color:#00aa55;margin-left:auto;}
+.srp-empty{text-align:center;padding:28px 0;color:#8899bb;font-size:12px;}
+
+/* ===== SRC: 修理費用管理ページ ===== */
+#src{background:#f2f6fb;}
+.src-hd{padding:52px 20px 14px;display:flex;align-items:center;gap:12px;border-bottom:1px solid #d8e4f0;background:linear-gradient(180deg,#1a2e48,#1e3354);color:#fff;}
+.src-body{flex:1;overflow-y:auto;padding:12px 16px max(calc(env(safe-area-inset-bottom)+20px),40px);}
+.src-filter-row{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+.src-filter-btn{padding:6px 14px;border-radius:20px;border:1.5px solid #d0dce8;background:#fff;color:#5577aa;font-size:11px;font-weight:700;cursor:pointer;touch-action:manipulation;}
+.src-filter-btn.active{background:#1a2e48;border-color:#1a2e48;color:#fff;}
+.src-kpi-row{display:flex;gap:8px;margin-bottom:14px;}
+.src-kpi{flex:1;background:#fff;border:1px solid #dde8f4;border-radius:12px;padding:12px 10px;text-align:center;box-shadow:0 1px 4px rgba(30,50,100,.05);}
+.src-kpi-n{font-size:20px;font-weight:900;color:#1a2840;}
+.src-kpi-l{font-size:9px;color:#8899bb;margin-top:2px;}
+.src-veh-card{background:#fff;border:1px solid #dde8f4;border-radius:12px;margin-bottom:8px;overflow:hidden;}
+.src-veh-hd{display:flex;align-items:center;padding:11px 14px;cursor:pointer;gap:10px;-webkit-tap-highlight-color:transparent;}
+.src-veh-hd:active{background:#f4f8fc;}
+.src-veh-name{flex:1;font-size:13px;font-weight:700;color:#1a2840;}
+.src-veh-amt{font-size:14px;font-weight:800;color:#1a2840;}
+.src-veh-cnt{font-size:9px;color:#8899bb;margin-top:1px;}
+.src-repair-row{padding:8px 14px 8px 28px;border-top:1px solid #f0f5fa;display:flex;align-items:flex-start;gap:8px;}
+.src-repair-loc{flex:1;font-size:11px;color:#5577aa;}
+.src-repair-amt{font-size:12px;font-weight:700;color:#00aa55;}
+.src-month-row{display:flex;align-items:center;padding:9px 14px;background:#fff;border:1px solid #dde8f4;border-radius:10px;margin-bottom:6px;}
+.src-month-lbl{font-size:12px;font-weight:700;color:#1a2840;flex:1;}
+.src-month-bar{height:6px;border-radius:3px;background:#4488cc;margin-right:10px;}
+.src-month-amt{font-size:12px;font-weight:800;color:#2266cc;}
+
+/* ===== 修理登録モーダル ===== */
+#repairModal .conf-sheet{padding:24px 20px;padding-bottom:max(env(safe-area-inset-bottom),28px);}
+.repair-dmg-badge{background:#fff3e0;border:1.5px solid #ee880060;border-radius:12px;padding:10px 14px;margin-bottom:16px;display:flex;align-items:center;gap:10px;}
+.repair-input-lbl{font-size:10px;font-weight:700;color:#5577aa;letter-spacing:.5px;margin-bottom:5px;}
+.repair-input{width:100%;padding:10px 12px;border-radius:10px;border:1.5px solid #d0dce8;background:#f8fafd;font-size:14px;color:#1a2840;margin-bottom:12px;font-family:-apple-system,sans-serif;outline:none;}
+.repair-input:focus{border-color:#4488cc;background:#fff;}
+.repair-row{display:flex;gap:8px;}
+.repair-row .repair-input{margin-bottom:0;}
+.repair-staff-grid{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;}
+.repair-staff-btn{padding:7px 12px;border-radius:8px;border:1.5px solid #d0dce8;background:#f8fafd;color:#1a2840;font-size:11px;font-weight:600;cursor:pointer;touch-action:manipulation;}
+.repair-staff-btn.sel{background:#1a2e48;border-color:#1a2e48;color:#fff;}
+
+/* ===================================================
+   レスポンシブ 3段階
+   スマホ : default (〜767px)
+   iPad   : 768px〜1023px
+   PC     : 1024px〜
+   =================================================== */
+
+/* ===== iPad (768px〜1023px) ===== */
+@media (min-width:768px) and (max-width:1023px){
+  html,body{overflow:auto;}
+  body{background:#c8d8e8;}
+  .screen{
+    position:relative;inset:auto;display:none;flex-direction:column;
+    max-width:640px;width:100%;margin:0 auto;min-height:100vh;
+    box-shadow:0 0 60px rgba(0,0,0,.14);
+  }
+  .screen.active{display:flex;opacity:1;pointer-events:all;}
+
+  /* ログイン */
+  #login{min-height:100vh;padding:60px 0;}
+  .login-inner{max-width:560px;margin:0 auto;padding:0 40px;}
+  .login-title{font-size:30px;}
+  .login-sub{font-size:14px;margin-bottom:36px;}
+  .store-sel-wrap{flex-direction:row;gap:16px;}
+  .store-sel-card{flex:1;padding:26px 22px;}
+  .store-sel-card .store-icon{font-size:32px;}
+  .store-sel-card .store-name{font-size:17px;}
+  .store-sel-card:hover{background:#1e3a5f;border-color:#4488cc;}
+  .login-grid{grid-template-columns:repeat(3,1fr);gap:10px;}
+  .login-btn{padding:20px 10px;}
+  .login-btn:hover{background:#1e3a5f;border-color:#4488cc;}
+
+  /* SM */
+  .sm-hd{padding:32px 28px 16px;}
+  .sm-list{padding:12px 24px 40px;}
+  .sm-stats{padding:10px 24px 8px;}
+
+  /* S0 */
+  .s0-hd{padding:16px 28px 10px;}
+  .s0-car{margin:0 24px;}
+  .s0-car-view{height:clamp(300px,52vh,500px);}
+  .s0-chips{margin:10px 24px 0;}
+  .s0-chain-link{margin:10px 24px 0;}
+  .s0-actions{margin:auto 24px 0;padding-bottom:28px;}
+  .s0-edit-btn{margin:8px 24px 0;}
+
+  /* SC / SC0 */
+  .sc-hd,.sc0-hd{padding:28px 28px 16px;}
+  .sc-list{padding:16px 28px 40px;}
+  .sc0-acc{margin:0 24px 8px;}
+  .sc0-customer-banner{margin:12px 24px 4px;}
+  .sc0-note{margin:4px 24px 8px;}
+  .sc0-bottom{padding:10px 24px;}
+  .sc0-section-label{padding:8px 24px 4px;}
+
+  /* オーバーレイ */
+  .edit-overlay,.dmg-edit-overlay,.conf-overlay,.photo-lb{max-width:640px;}
+  .sp-bottom{max-width:640px;}
+  .s4-hd{padding:28px 28px 16px;}
+  .s4-scroll{padding:12px 28px;}
+  .s4-bottom{padding:14px 28px 28px;}
+}
+
+/* ===== PC (1024px〜) ===== */
+@media (min-width:1024px){
+  html,body{overflow:auto;}
+  body{background:#c0cedd;}
+  .screen{
+    position:relative;inset:auto;display:none;flex-direction:column;
+    max-width:1080px;width:100%;margin:0 auto;min-height:100vh;
+    box-shadow:0 0 50px rgba(0,0,0,.10);
+  }
+  .screen.active{display:flex;opacity:1;pointer-events:all;}
+
+  /* ログイン */
+  #login{min-height:100vh;padding:80px 0;}
+  .login-inner{max-width:720px;margin:0 auto;padding:0 60px;}
+  .login-title{font-size:36px;}
+  .login-sub{font-size:15px;margin-bottom:40px;}
+  .store-sel-wrap{flex-direction:row;gap:20px;}
+  .store-sel-card{flex:1;padding:32px 28px;transition:all .2s;}
+  .store-sel-card .store-icon{font-size:40px;}
+  .store-sel-card .store-name{font-size:20px;}
+  .store-sel-card:hover{background:#1e3a5f;border-color:#4488cc;transform:translateY(-2px);box-shadow:0 8px 28px rgba(0,0,0,.2);}
+  .login-grid{grid-template-columns:repeat(5,1fr);gap:12px;}
+  .login-btn{padding:22px 10px;transition:all .18s;}
+  .login-btn:hover{background:#1e3a5f;border-color:#4488cc;}
+
+  /* SM: 2列グリッド */
+  .sm-hd{padding:36px 48px 18px;}
+  .sm-list{padding:12px 48px 40px;}
+  .sm-stats{padding:12px 48px 8px;}
+  .sm-cards-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .sm-card{margin-bottom:0;transition:box-shadow .15s;}
+  .sm-card:hover{box-shadow:0 4px 16px rgba(30,50,100,.12);}
+
+  /* S0 */
+  .s0-hd{padding:20px 48px 12px;}
+  .s0-car{margin:0 48px;}
+  .s0-car-view{height:clamp(340px,55vh,560px);}
+  .s0-chips{margin:12px 48px 0;}
+  .s0-chain-link{margin:12px 48px 0;}
+  .s0-actions{margin:auto 48px 0;padding-bottom:36px;}
+  .s0-edit-btn{margin:8px 48px 0;}
+  .s0-action-row .btn-primary{font-size:15px;padding:16px;}
+
+  /* SC / SC0 */
+  .sc-hd,.sc0-hd{padding:36px 48px 18px;}
+  .sc-list{padding:16px 48px 40px;}
+  .sc0-acc{margin:0 48px 8px;}
+  .sc0-customer-banner{margin:12px 48px 4px;}
+  .sc0-note{margin:4px 48px 8px;}
+  .sc0-bottom{padding:10px 48px;}
+  .sc0-section-label{padding:8px 48px 4px;}
+
+  /* オーバーレイ: PC幅に合わせる + シートは中央寄せ */
+  .edit-overlay,.dmg-edit-overlay,.conf-overlay,.photo-lb{max-width:1080px;}
+  .sp-bottom{max-width:1080px;}
+  .edit-sheet,.dmg-edit-sheet,.conf-sheet{
+    max-width:560px;
+    left:50%;right:auto;
+    transform:translateX(-50%) translateY(100%);
+    border-radius:22px 22px 0 0;
+  }
+  .edit-overlay.show .edit-sheet,
+  .dmg-edit-overlay.show .dmg-edit-sheet,
+  .conf-overlay.show .conf-sheet{
+    transform:translateX(-50%) translateY(0);
+  }
+
+  /* S1 / S4 */
+  .s4-hd{padding:36px 48px 18px;}
+  .s4-scroll{padding:12px 48px;}
+  .s4-bottom{padding:14px 48px 36px;}
+
+  /* 写真ライトボックス: PC中央 */
+  .photo-lb-canvas{max-width:720px;margin:0 auto;}
+  .photo-lb-footer{max-width:720px;margin:0 auto;}
+}
+</style>
+</head>
+<body>
+
+<!-- ==================== LOGIN: スタッフ選択 ==================== -->
+<div class="screen active" id="login">
+  <div class="login-inner">
+    <div class="login-logo">BUDDICA</div>
+    <div class="login-title">車両チェック</div>
+
+    <!-- 高松店のみ: 店舗選択をスキップしてスタッフ選択へ直行 -->
+    <div id="loginStep1" style="display:none;"></div>
+
+    <!-- STEP 2: スタッフ選択 -->
+    <div id="loginStep2" class="login-step2 active">
+      <div class="login-store-badge" id="loginStoreBadge">高松店</div>
+      <div class="login-sub" style="margin-bottom:20px;">担当スタッフを選択してください</div>
+      <div class="login-grid" id="staffGrid"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== SM: マスタ ==================== -->
+<div class="screen" id="sm">
+  <div class="sm-hd">
+    <div class="sm-hd-top">
+      <div class="sm-logo" style="display:flex;align-items:center;gap:5px;">BUDDICA <span style="font-size:8px;color:#4488cc88;font-weight:600;letter-spacing:1px;">v1.0.0</span><span id="rtDot" class="rt-dot" title="接続中..."></span></div>
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div style="font-size:10px;color:#88aacc;" id="smStaffLabel"></div>
+        <button onclick="reloadVehicles()" id="smReloadBtn" style="font-size:9px;color:#88ccff;background:#ffffff10;border:1px solid #88ccff30;border-radius:6px;padding:3px 8px;cursor:pointer;" title="車両一覧を更新">🔄</button>
+        <button onclick="openTestReset()" style="font-size:9px;color:#ff8888;background:#ffffff10;border:1px solid #ff444430;border-radius:6px;padding:3px 8px;cursor:pointer;touch-action:manipulation;" title="テストリセット">🗑️</button>
+        <button onclick="openApiKeySetting()" id="smAiBtn" style="font-size:9px;color:#ffaa44;background:#ffffff10;border:1px solid #ffaa4430;border-radius:6px;padding:3px 8px;cursor:pointer;" title="Claude APIキー設定">🤖</button>
+        <button onclick="goto('login')" style="font-size:9px;color:#4488aa;background:#ffffff15;border:1px solid #ffffff20;border-radius:6px;padding:3px 8px;cursor:pointer;">切替</button>
+        <!-- 管理APPリンク（BUDDICA用に後で設定） -->
+        <a id="smAppLink" href="#" target="_blank" style="display:none;">管理APP</a>
+      </div>
+    </div>
+    <div style="font-size:22px;font-weight:800;margin-bottom:2px;">車両一覧</div>
+    <div style="font-size:11px;color:#ffffff35;" id="smHdStore">読み込み中...</div>
+  </div>
+  <div id="smUnregBanner" style="display:none;" class="sm-unreg-banner">⚡ <span id="smUnregCount" class="sm-unreg-count">0</span>台が初期登録待ちです — タップして登録してください</div>
+  <div class="sm-stats" id="smStats">
+    <div class="ssp"><div class="ssp-n" style="color:#ff8888;" id="cntReturning">—</div><div class="ssp-l">返却待ち</div></div>
+    <div class="ssp"><div class="ssp-n" style="color:#ffcc55;" id="cntOut">—</div><div class="ssp-l">貸出中</div></div>
+    <div class="ssp"><div class="ssp-n" style="color:#66dd99;" id="cntReady">—</div><div class="ssp-l">空車</div></div>
+    <div class="ssp"><div class="ssp-n" style="color:#88aaff;" id="cntMaint">—</div><div class="ssp-l">整備中</div></div>
+    <div class="ssp"><div class="ssp-n" style="color:#ffcc66;" id="cntUnreg">—</div><div class="ssp-l">要登録</div></div>
+  </div>
+  <div class="sm-list" id="smList">
+    <div style="text-align:center;padding:40px 0;color:#8899bb;font-size:13px;">読み込み中...</div>
+  </div>
+</div>
+
+<!-- ==================== S0: 車両詳細 ==================== -->
+<div class="screen" id="s0">
+  <div class="s0-hd">
+    <div>
+      <div style="font-size:8px;font-weight:900;letter-spacing:2px;color:#00d4ff45;margin-bottom:2px;" id="s0StoreLabel">BUDDICA</div>
+      <div class="s0-vno" id="s0Vno">—</div>
+      <div class="s0-model" id="s0Model">—</div>
+      <div style="display:inline-flex;align-items:center;gap:8px;margin-top:5px;">
+        <span style="display:inline-block;font-size:10px;padding:3px 10px;border-radius:16px;font-weight:700;" id="s0StatusBadge">—</span>
+        <span style="font-size:9px;color:#88aacc;" id="s0LastCheck">—</span>
+      </div>
+      <div id="s0ResvInfo" style="margin-top:6px;"></div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:5px;margin-top:2px;">
+      <button class="back-btn" onclick="goto('sm')">‹</button>
+      <button class="hd-reload-btn" onclick="reloadS0()" title="最新に更新">🔄</button>
+    </div>
+  </div>
+  <div class="s0-editing-warn" id="s0EditingWarn"><span>⚠</span><span id="s0EditingWarnNames"></span></div>
+  <!-- スクロール領域 -->
+  <div class="s0-scroll">
+    <div class="s0-car">
+      <div class="s0-car-view" id="s0CarView">
+        <!-- 俯瞰図SVGがここに挿入される -->
+      </div>
+      <div class="s0-insp-legend" id="s0InspLegend"></div>
+      <div class="s0-stats-row">
+        <div class="s0-stat"><span class="k">走行距離</span><span class="v">38,450 km</span></div>
+        <div class="s0-stat"><span class="k">貸出回数</span><span class="v">127 回</span></div>
+        <div class="s0-stat"><span class="k">記録傷</span><span class="v" style="color:#ff8888;">4 件</span></div>
+      </div>
+      <div style="padding:6px 14px 8px;background:#f8fafd;border-top:1px solid #e8f0f6;font-size:9px;color:#8899bb;display:flex;align-items:center;gap:5px;">
+        <span>🕐</span>
+        <span>この傷状態は</span>
+        <strong style="color:#5577aa;" id="s0SnapTime">2026/04/12 09:05</strong>
+        <span>時点 — 出庫チェック前に必ず確認</span>
+      </div>
+    </div>
+    <div id="s0ChipsList" class="s0-chips"></div>
+    <div id="s0InitBanner"></div>
+    <div id="s0ChainSection"></div>
+    <div id="s0ActionArea" class="s0-actions"></div>
+  </div>
+</div>
+
+<!-- ==================== SC: チェーン履歴 ==================== -->
+<div class="screen" id="sc">
+  <div class="sc-hd">
+    <button class="back-btn" onclick="goto('sm')">‹</button>
+    <div style="flex:1;"><div style="font-size:16px;font-weight:700;" id="scTitle">チェーン履歴</div><div style="font-size:10px;color:#88aacc;margin-top:2px;">追記のみ・削除不可 — 廃車まで繋がる</div></div>
+    <button class="hd-reload-btn" onclick="loadChain(currentVehicleId);showToast('🔄 更新')" title="最新に更新">🔄</button>
+  </div>
+  <div class="sc-list">
+    <div class="sc-timeline" id="scTimeline">
+      <div style="text-align:center;padding:40px 0;color:#88aacc;font-size:13px;">読み込み中...</div>
+    </div>
+    <div style="height:20px;text-align:center;font-size:10px;color:#ffffff12;">— 起点 —</div>
+  </div>
+</div>
+
+<!-- ==================== SC0: 貸出 ==================== -->
+<div class="screen" id="sc0">
+  <div class="sc0-hd">
+    <button class="back-btn" onclick="goto('s0')">‹</button>
+    <div style="flex:1;">
+      <div style="font-size:9px;color:#88bbdd;font-weight:700;letter-spacing:1.5px;margin-bottom:3px;">CHECKOUT / 貸出</div>
+      <div style="font-size:16px;font-weight:700;" id="sc0Title">貸出確認</div>
+      <div style="font-size:10px;color:#88aacc;margin-top:2px;" id="sc0Sub">—</div>
+    </div>
+  </div>
+  <!-- スクロール可能な本体（マップ＋バナー＋傷リスト） -->
+  <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+    <div class="chk-map-main" id="sc0MapView"></div>
+    <div id="sc0ResvBanner"></div>
+    <div id="sc0DmgList" style="padding:8px 14px 90px;background:#f4f8fc;border-top:1px solid #dde8f4;"></div>
+  </div>
+  <!-- 承認ボタン -->
+  <div class="sc0-bottom">
+    <button class="btn-primary btn-blue" id="sc0CheckoutBtn" onclick="sc0Checkout()" style="font-size:15px;padding:16px;opacity:0.4;pointer-events:none;">⏳ 読み込み中...</button>
+    <button class="btn-ghost" onclick="goto('s0')">戻る</button>
+  </div>
+</div>
+
+<!-- ==================== SR0: 返却 ==================== -->
+<div class="screen" id="sr0">
+  <div class="sr0-hd">
+    <button class="back-btn" onclick="goto('s0')">‹</button>
+    <div style="flex:1;">
+      <div style="font-size:9px;color:#88bbdd;font-weight:700;letter-spacing:1.5px;margin-bottom:3px;">RETURN / 返却</div>
+      <div style="font-size:16px;font-weight:700;" id="sr0Title">返却確認</div>
+      <div style="font-size:10px;color:#88aacc;margin-top:2px;" id="sr0Sub">—</div>
+    </div>
+  </div>
+  <!-- スクロール可能な本体（マップ＋バナー＋傷リスト） -->
+  <div style="flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;">
+    <div class="chk-map-main" id="sr0MapView"></div>
+    <div id="sr0ResvBanner"></div>
+    <div id="sr0DmgList" style="padding:8px 14px 90px;background:#f4f8fc;border-top:1px solid #dde8f4;"></div>
+  </div>
+  <!-- 承認ボタン -->
+  <div class="sr0-bottom">
+    <button class="btn-primary btn-green" id="sr0ReturnBtn" onclick="sr0SaveReturn()" style="font-size:15px;padding:16px;opacity:0.4;pointer-events:none;">⏳ 読み込み中...</button>
+    <button class="btn-ghost" onclick="goto('s0')">戻る</button>
+  </div>
+</div>
+
+<!-- ==================== SI: 初期登録 ==================== -->
+<div class="screen" id="si">
+  <div class="si-hd">
+    <button class="back-btn" onclick="siCancel()" style="flex-shrink:0;margin-top:2px;">‹</button>
+    <div style="flex:1;">
+      <div style="font-size:9px;font-weight:900;letter-spacing:3px;color:#00d4ff45;margin-bottom:3px;">INITIAL REGISTRATION</div>
+      <div style="font-size:16px;font-weight:700;color:#fff;" id="siTitle">初期登録</div>
+      <div style="font-size:10px;color:#88aacc;margin-top:2px;" id="siSub">現在の傷を全て記録してください</div>
+    </div>
+    <button class="hd-reload-btn" onclick="siRenderMap();siRenderList();showToast('🔄 更新')" title="最新に更新">🔄</button>
+  </div>
+  <div class="si-map-wrap">
+    <div class="si-map-view" id="siMapView"></div>
+    <div style="padding:5px 12px 6px;background:#f0f5fb;border-top:1px solid #e0eaf4;font-size:9px;color:#6688aa;text-align:center;">
+      ゾーンをタップ → 傷を追加 ／ ピンをタップ → 削除
+    </div>
+  </div>
+  <div class="si-list-wrap" id="siListWrap">
+    <div class="si-section-hd">
+      <span>登録済みの傷</span>
+      <span id="siDmgCount" style="font-size:12px;font-weight:800;color:#ff8888;">0件</span>
+    </div>
+    <div id="siDmgList">
+      <div class="si-empty">
+        <div class="si-empty-icon">🔍</div>
+        <div style="font-size:12px;font-weight:600;color:#4466aa;margin-bottom:4px;">まだ傷は登録されていません</div>
+        <div style="font-size:10px;">上の展開図のゾーンをタップして傷を追加</div>
+      </div>
+    </div>
+  </div>
+  <div class="si-bottom">
+    <div class="si-last-upd" id="siLastUpd"></div>
+    <button class="btn-primary btn-green" onclick="siComplete()" id="siCompleteBtn">✓ 登録完了 — チェーン起点を作成</button>
+    <button class="btn-ghost" style="margin-top:8px;" onclick="siCancel()">キャンセル（保存しません）</button>
+  </div>
+</div>
+
+<!-- ==================== 写真ライトボックス ==================== -->
+<div class="photo-lb" id="photoLb" onclick="closePhotoLB(event)">
+  <div class="photo-lb-header">
+    <button class="photo-lb-close" onclick="closePhotoLB()">‹</button>
+    <div class="photo-lb-hd-info">
+      <div class="photo-lb-hd-loc" id="lbLoc">—</div>
+      <div class="photo-lb-hd-sub" id="lbSub">—</div>
+    </div>
+  </div>
+  <div class="photo-lb-canvas">
+    <div class="photo-lb-canvas-inner" id="lbCanvasInner"></div>
+  </div>
+  <div class="photo-lb-footer">
+    <div class="photo-lb-desc" id="lbDesc">—</div>
+    <div class="photo-lb-meta" id="lbMeta"></div>
+  </div>
+</div>
+
+<!-- ===== Claude APIキー設定モーダル ===== -->
+<div class="conf-overlay" id="apiKeyOverlay" onclick="closeApiKeySetting(event)">
+  <div class="conf-sheet">
+    <div class="conf-handle"></div>
+    <div style="text-align:center;margin-bottom:16px;">
+      <div style="font-size:28px;margin-bottom:6px;">🤖</div>
+      <div style="font-size:16px;font-weight:800;color:#1a2840;">Claude AIキー設定</div>
+      <div style="font-size:11px;color:#8899bb;margin-top:4px;line-height:1.6;">
+        Anthropic Console → API Keys<br>「BUDDICA」のキーをコピーして貼り付けてください
+      </div>
+    </div>
+    <div style="background:#f4f8fc;border:1.5px solid #d0dce8;border-radius:12px;padding:12px 14px;margin-bottom:14px;">
+      <div style="font-size:9px;color:#8899bb;font-weight:700;letter-spacing:1px;margin-bottom:6px;">APIキー</div>
+      <input id="apiKeyInput" type="password"
+        placeholder="sk-ant-api03-..."
+        style="width:100%;border:none;background:transparent;font-size:13px;color:#1a2840;font-family:monospace;outline:none;"
+        oninput="updateApiKeyPreview()">
+      <div id="apiKeyStatus" style="font-size:10px;margin-top:6px;color:#8899bb;"></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-bottom:10px;">
+      <button onclick="toggleApiKeyVisibility()" style="flex:1;padding:11px;border-radius:10px;border:1.5px solid #d0dce8;background:#fff;color:#5577aa;font-size:12px;font-weight:600;cursor:pointer;">👁 表示切替</button>
+      <button onclick="pasteApiKey()" style="flex:1;padding:11px;border-radius:10px;border:1.5px solid #4488cc;background:#eef4fc;color:#2266cc;font-size:12px;font-weight:600;cursor:pointer;">📋 貼り付け</button>
+    </div>
+    <button class="btn-primary btn-green" onclick="saveApiKey()" style="margin-bottom:10px;">✓ 保存する</button>
+    <button class="btn-ghost" onclick="closeApiKeySetting()">キャンセル</button>
+  </div>
+</div>
+
+<!-- ==================== SRP: 修理管理 ==================== -->
+<div class="screen" id="srp">
+  <div class="srp-hd">
+    <button class="back-btn" onclick="goto('s0')" style="background:#ffffff18;border-color:#ffffff20;color:#fff;">‹</button>
+    <div style="flex:1;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:2px;color:#ffcc8855;margin-bottom:2px;">REPAIR MANAGEMENT</div>
+      <div style="font-size:16px;font-weight:700;" id="srpTitle">修理管理</div>
+      <div style="font-size:10px;color:#cc9966;margin-top:1px;" id="srpSub">—</div>
+    </div>
+    <button onclick="openCostPage()" style="padding:7px 12px;border-radius:10px;border:1px solid #ffaa4440;background:#ffaa4420;color:#ffcc66;font-size:11px;font-weight:700;cursor:pointer;touch-action:manipulation;">💴 費用管理</button>
+  </div>
+  <div class="srp-body" id="srpBody">
+    <div style="text-align:center;padding:40px;color:#8899bb;font-size:13px;">読み込み中...</div>
+  </div>
+</div>
+
+<!-- ==================== SRC: 修理費用管理 ==================== -->
+<div class="screen" id="src">
+  <div class="src-hd">
+    <button class="back-btn" onclick="goto('srp')">‹</button>
+    <div style="flex:1;">
+      <div style="font-size:9px;font-weight:700;letter-spacing:2px;color:#88aaccaa;margin-bottom:2px;">COST MANAGEMENT</div>
+      <div style="font-size:16px;font-weight:700;">修理費用管理</div>
+    </div>
+    <button class="hd-reload-btn" onclick="renderSrc();showToast('🔄 更新')">🔄</button>
+  </div>
+  <div class="src-body" id="srcBody">
+    <div style="text-align:center;padding:40px;color:#8899bb;font-size:13px;">読み込み中...</div>
+  </div>
+</div>
+
+<!-- ===== 修理登録モーダル ===== -->
+<div class="conf-overlay" id="repairModal" onclick="closeRepairModal(event)">
+  <div class="conf-sheet" onclick="event.stopPropagation()">
+    <div class="conf-handle"></div>
+    <div style="font-size:16px;font-weight:800;color:#1a2840;margin-bottom:4px;">🔧 修理登録</div>
+    <div style="font-size:11px;color:#8899bb;margin-bottom:14px;">完了すると傷リストから削除・チェーンに記録されます</div>
+    <!-- 修理箇所（読み取り専用） -->
+    <div class="repair-dmg-badge">
+      <div id="repairDmgDot" style="width:10px;height:10px;border-radius:50%;background:#ff8800;flex-shrink:0;"></div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:700;color:#1a2840;" id="repairDmgLoc">—</div>
+        <div style="font-size:10px;color:#8899bb;margin-top:1px;" id="repairDmgMeta">—</div>
+      </div>
+    </div>
+    <!-- 業者名 -->
+    <div class="repair-input-lbl">業者名</div>
+    <input class="repair-input" id="repairVendor" type="text" placeholder="例：〇〇板金工業">
+    <!-- 修理日 & 金額 -->
+    <div class="repair-row" style="margin-bottom:12px;">
+      <div style="flex:1;">
+        <div class="repair-input-lbl">修理日</div>
+        <input class="repair-input" id="repairDate" type="date" style="width:100%;">
+      </div>
+      <div style="flex:1;">
+        <div class="repair-input-lbl">金額（円）</div>
+        <input class="repair-input" id="repairAmount" type="number" min="0" placeholder="0" style="width:100%;">
+      </div>
+    </div>
+    <!-- 担当者 -->
+    <div class="repair-input-lbl">担当者</div>
+    <div class="repair-staff-grid" id="repairStaffGrid"></div>
+    <!-- 備考 -->
+    <div class="repair-input-lbl">備考</div>
+    <input class="repair-input" id="repairNotes" type="text" placeholder="詳細・メモ（任意）">
+    <!-- ボタン -->
+    <button class="btn-primary" style="background:linear-gradient(135deg,#ee8800,#cc5500);margin-bottom:10px;" onclick="submitRepair()">🔧 修理完了として登録</button>
+    <button class="btn-ghost" onclick="closeRepairModal()">キャンセル</button>
+  </div>
+</div>
+
+<!-- ===== 確認モーダル ===== -->
+<div class="conf-overlay" id="confOverlay" onclick="cancelConf(event)">
+  <div class="conf-sheet">
+    <div class="conf-handle"></div>
+    <div class="conf-question">この内容でいいですか？</div>
+    <div class="conf-dmg-name" id="confDmgName">—</div>
+    <div class="conf-dmg-choice" id="confDmgChoice"></div>
+    <button class="btn-primary" id="confOkBtn" onclick="commitDmg()" style="margin-bottom:10px;">はい、これでいいです</button>
+    <button class="btn-ghost" onclick="cancelConf()">戻る</button>
+  </div>
+</div>
+
+<!-- ===== 傷ピンタップ編集シート ===== -->
+<div class="dmg-edit-overlay" id="dmgEditOverlay" onclick="closeDmgEdit(event)">
+  <div class="dmg-edit-sheet">
+    <div class="dmg-edit-handle"></div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px;">
+      <div>
+        <div class="dmg-edit-loc" id="dmgEditLoc">—</div>
+        <div class="dmg-edit-meta" id="dmgEditMeta"></div>
+      </div>
+      <div id="dmgEditSevChip" style="font-size:10px;padding:4px 10px;border-radius:10px;font-weight:700;border:1px solid;flex-shrink:0;margin-top:4px;"></div>
+    </div>
+    <div class="dmg-edit-photo" onclick="alert('（実装後）撮影・写真選択')">
+      <div>
+        <div style="text-align:center;font-size:28px;" id="dmgEditPhotoIcon">📸</div>
+        <div class="dmg-edit-photo-label" id="dmgEditPhotoLabel">エビデンス写真を確認 / 再撮影</div>
+      </div>
+    </div>
+    <div class="dmg-edit-btns">
+      <button class="dmg-repair-btn" id="dmgRepairBtn" onclick="markRepaired()">🔧 修復完了 — この傷を削除する</button>
+      <button class="btn-ghost" onclick="closeDmgEdit()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 手動編集パネル ===== -->
+<div class="edit-overlay" id="editOverlay" onclick="closeEditPanel(event)">
+  <div class="edit-sheet">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div class="edit-handle" style="margin:0;"></div>
+      <button onclick="closeEditPanel()" style="background:#f0f4fa;border:none;border-radius:50%;width:32px;height:32px;font-size:16px;cursor:pointer;color:#5577aa;display:flex;align-items:center;justify-content:center;flex-shrink:0;">✕</button>
+    </div>
+    <div class="edit-title" id="editTitle">傷を追加</div>
+    <div class="edit-sub" id="editSub">マップで傷の箇所を選ぶか、下で箇所を選択してください</div>
+    <div id="editZoneSection">
+      <div class="edit-section">箇所を選択</div>
+      <div class="edit-zones" id="editZones"></div>
+    </div>
+    <div id="editStep2" style="display:none;">
+      <div class="edit-section">STEP 2 — 損傷の種類（国際基準）</div>
+      <div class="edit-types" id="editTypes" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:5px;">
+        <button class="edit-type-btn" data-val="scratch" onclick="selEditType(this)">擦り傷<br><span style="font-size:8px;opacity:.7;">Scratch</span></button>
+        <button class="edit-type-btn" data-val="dent" onclick="selEditType(this)">凹み<br><span style="font-size:8px;opacity:.7;">Dent</span></button>
+        <button class="edit-type-btn" data-val="chip" onclick="selEditType(this)">塗装欠け<br><span style="font-size:8px;opacity:.7;">Paint Chip</span></button>
+        <button class="edit-type-btn" data-val="stone_chip" onclick="selEditType(this)" style="background:#e8f4ff;border-color:#4499dd;">飛び石<br><span style="font-size:8px;opacity:.7;">Stone Chip</span></button>
+        <button class="edit-type-btn" data-val="crack" onclick="selEditType(this)">ひび割れ<br><span style="font-size:8px;opacity:.7;">Crack</span></button>
+        <button class="edit-type-btn" data-val="break" onclick="selEditType(this)">破損<br><span style="font-size:8px;opacity:.7;">Break</span></button>
+        <button class="edit-type-btn" data-val="stain" onclick="selEditType(this)">汚れ・シミ<br><span style="font-size:8px;opacity:.7;">Stain</span></button>
+        <button class="edit-type-btn" data-val="burn" onclick="selEditType(this)">焦げ痕<br><span style="font-size:8px;opacity:.7;">Burn</span></button>
+        <button class="edit-type-btn" data-val="rust" onclick="selEditType(this)">錆び<br><span style="font-size:8px;opacity:.7;">Rust</span></button>
+        <button class="edit-type-btn" data-val="missing" onclick="selEditType(this)">部品欠損<br><span style="font-size:8px;opacity:.7;">Missing</span></button>
+        <button class="edit-type-btn" data-val="tire_flat" onclick="selEditType(this)">パンク<br><span style="font-size:8px;opacity:.7;">Flat Tire</span></button>
+        <button class="edit-type-btn" data-val="tire_wear" onclick="selEditType(this)">タイヤ摩耗<br><span style="font-size:8px;opacity:.7;">Tire Wear</span></button>
+        <button class="edit-type-btn" data-val="other" onclick="selEditType(this)">その他<br><span style="font-size:8px;opacity:.7;">Other</span></button>
+      </div>
+      <div class="edit-section">STEP 3 — 大きさ</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:5px;margin-bottom:10px;" id="editSizeRow">
+        <button class="edit-sev-btn" data-val="XS" onclick="selEditSize(this)" style="font-size:11px;">XS<br><span style="font-size:8px;opacity:.7;">&lt;1cm</span></button>
+        <button class="edit-sev-btn" data-val="S"  onclick="selEditSize(this)" style="font-size:11px;">S<br><span style="font-size:8px;opacity:.7;">1-3cm</span></button>
+        <button class="edit-sev-btn" data-val="M"  onclick="selEditSize(this)" style="font-size:11px;">M<br><span style="font-size:8px;opacity:.7;">3-10cm</span></button>
+        <button class="edit-sev-btn" data-val="L"  onclick="selEditSize(this)" style="font-size:11px;">L<br><span style="font-size:8px;opacity:.7;">&gt;10cm</span></button>
+      </div>
+      <div class="edit-section">STEP 4 — 程度</div>
+      <div class="edit-sev">
+        <button class="edit-sev-btn edit-sev-minor" data-val="minor" onclick="selEditSev(this)">軽微<br><span style="font-size:8px;">Minor</span></button>
+        <button class="edit-sev-btn edit-sev-moderate" data-val="moderate" onclick="selEditSev(this)">中程度<br><span style="font-size:8px;">Moderate</span></button>
+        <button class="edit-sev-btn edit-sev-major" data-val="major" onclick="selEditSev(this)">重大<br><span style="font-size:8px;">Major</span></button>
+      </div>
+      <div class="edit-section">メモ（任意）</div>
+      <input class="edit-desc-input" id="editDescInput" placeholder="例: 縦15cm、ドア中央部" type="text">
+      <div class="edit-section" style="margin-top:4px;">写真（任意）<span id="editPhotoHint" style="color:#ffaa44;font-size:9px;font-weight:600;margin-left:6px;display:none;">← 種類・程度を先に選択</span></div>
+      <div id="editPhotoBtns" style="display:flex;gap:8px;margin-bottom:10px;transition:opacity .2s;">
+        <button onclick="triggerCamera()" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid #4488cc;background:#eef4fc;color:#2266cc;font-size:12px;font-weight:600;cursor:pointer;">📷 撮影</button>
+        <button onclick="triggerLibrary()" style="flex:1;padding:10px;border-radius:10px;border:1.5px solid #4488cc;background:#eef4fc;color:#2266cc;font-size:12px;font-weight:600;cursor:pointer;">📁 選択</button>
+      </div>
+      <div id="editPhotoPreview" style="display:none;width:100%;border-radius:10px;overflow:hidden;border:1px solid #d0dce8;margin-bottom:10px;position:relative;">
+        <img id="editPhotoImg" style="width:100%;display:block;" src="">
+        <button onclick="clearEditPhoto()" style="position:absolute;top:6px;right:6px;background:#00000088;border:none;color:#fff;border-radius:6px;padding:3px 8px;font-size:11px;cursor:pointer;">✕ 削除</button>
+      </div>
+    </div>
+    <div class="edit-action-row">
+      <button class="edit-ok-btn" id="editOkBtn" onclick="submitEdit()" style="opacity:.4;pointer-events:none;">✓ 傷を追加</button>
+      <button class="edit-repair-btn" id="editRepairBtn" onclick="repairZone()" style="opacity:.4;pointer-events:none;">🔧 修復済み</button>
+      <button class="edit-cancel-btn" onclick="closeEditPanel()">戻る</button>
+    </div>
+  </div>
+</div>
+
+<!-- 更新通知バナー（全画面共通） -->
+<div class="update-banner" id="updateBanner">
+  <span style="font-size:14px;flex-shrink:0;">🔔</span>
+  <span class="update-banner-msg" style="flex:1;"></span>
+</div>
+
+<!-- キャンバス（写真圧縮用） -->
+<canvas id="compressCanvas" style="display:none;"></canvas>
+<!-- カメラ・ライブラリ入力 -->
+<input type="file" id="cameraInput" accept="image/*" capture="environment" style="display:none;" onchange="handlePhotoSelect(this)">
+<input type="file" id="libraryInput" accept="image/*" style="display:none;" onchange="handlePhotoSelect(this)">
+
+<script>
+// ===== Supabase 初期化 =====
+const SUPA_URL='https://iebojjjgabjmiczmtsm.supabase.co';
+const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImllYm9qampnYWJqbWljenptdHNtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MTk5MzEsImV4cCI6MjA5MTk5NTkzMX0.4jFXiz0W_rCzLKnBl1u8nHgNG9WSKxSQLUw0ys-fjjg';
+const sb=supabase.createClient(SUPA_URL,SUPA_KEY);
+
+// ===== PWA サービスワーカー登録 =====
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('sw.js').catch(()=>{});
+}
+
+// ===== スタッフ管理 =====
+// BUDDICA高松店スタッフ（後で追加・変更可能）
+const STAFF_LIST=[
+  {id:'staff1', name:'スタッフ1', emoji:'👨‍💼', store:'takamatsu'},
+  {id:'staff2', name:'スタッフ2', emoji:'👨‍💼', store:'takamatsu'},
+  {id:'staff3', name:'スタッフ3', emoji:'👨‍💼', store:'takamatsu'},
+];
+let currentStaff=localStorage.getItem('bdc_staff')||null;
+let currentStore='takamatsu';
+let currentVehicleId=null; // 現在開いている車両ID
+
+// ===== Claude APIキー =====
+let CLAUDE_API_KEY = localStorage.getItem('bdc_claude_key') || '';
+
+// ===== APIキー設定UI =====
+function openApiKeySetting(){
+  const input=document.getElementById('apiKeyInput');
+  if(input) input.value=CLAUDE_API_KEY||'';
+  updateApiKeyPreview();
+  updateSmAiBtn();
+  document.getElementById('apiKeyOverlay').classList.add('show');
+}
+function closeApiKeySetting(e){
+  if(e&&e.target!==document.getElementById('apiKeyOverlay')) return;
+  document.getElementById('apiKeyOverlay').classList.remove('show');
+}
+function updateApiKeyPreview(){
+  const input=document.getElementById('apiKeyInput');
+  const status=document.getElementById('apiKeyStatus');
+  if(!input||!status) return;
+  const val=input.value.trim();
+  if(!val){ status.textContent=''; return; }
+  if(val.startsWith('sk-ant-')&&val.length>30){
+    status.innerHTML='<span style="color:#00aa55;">✓ 有効なキー形式です</span>';
+  } else {
+    status.innerHTML='<span style="color:#ff8800;">⚠ sk-ant-api03-... の形式で入力してください</span>';
+  }
+}
+function toggleApiKeyVisibility(){
+  const input=document.getElementById('apiKeyInput');
+  if(!input) return;
+  input.type=input.type==='password'?'text':'password';
+}
+async function pasteApiKey(){
+  try{
+    const text=await navigator.clipboard.readText();
+    const input=document.getElementById('apiKeyInput');
+    if(input){input.value=text.trim();updateApiKeyPreview();}
+  }catch(e){
+    showToast('クリップボードへのアクセスを許可してください');
+  }
+}
+function saveApiKey(){
+  const input=document.getElementById('apiKeyInput');
+  if(!input) return;
+  const val=input.value.trim();
+  if(!val.startsWith('sk-ant-')){
+    showToast('⚠ sk-ant-api03-... の形式で入力してください');
+    return;
+  }
+  CLAUDE_API_KEY=val;
+  localStorage.setItem('bdc_claude_key',val);
+  document.getElementById('apiKeyOverlay').classList.remove('show');
+  updateSmAiBtn();
+  showToast('✓ Claude AIキーを保存しました');
+}
+function updateSmAiBtn(){
+  const btn=document.getElementById('smAiBtn');
+  if(!btn) return;
+  if(CLAUDE_API_KEY){
+    btn.style.color='#44dd88';
+    btn.style.borderColor='#44dd8840';
+    btn.title='Claude AIキー設定済み';
+  } else {
+    btn.style.color='#ffaa44';
+    btn.style.borderColor='#ffaa4430';
+    btn.title='Claude APIキーを設定してください';
+  }
+}
+
+// 旧AIカメラフロー変数（削除済み）
+
+function initLogin(){
+  // 高松店のみ: 店舗選択スキップ、スタッフ選択を即表示
+  currentStore='takamatsu';
+  showStep2('takamatsu');
+}
+function showStep1(){
+  // 1店舗のため使用しない
+}
+function selectStore(store){
+  currentStore='takamatsu';
+  showStep2('takamatsu');
+}
+function showStep2(store){
+  document.getElementById('loginStep1').style.display='none';
+  document.getElementById('loginStep2').classList.add('active');
+  const badge=document.getElementById('loginStoreBadge');
+  badge.textContent='高松店';
+  const grid=document.getElementById('staffGrid');
+  const filtered=STAFF_LIST;
+  grid.innerHTML=filtered.map(s=>`
+    <button class="login-btn" onclick="selectStaff('${s.id}','${s.name}')">
+      <div class="avatar">${s.emoji}</div>${s.name}
+    </button>`).join('');
+}
+function backToStep1(){
+  // 1店舗のため使用しない
+}
+function selectStaff(id,name){
+  currentStaff=name;
+  localStorage.setItem('bdc_staff',name);
+  localStorage.setItem('bdc_store',currentStore);
+  updateStaffHeader();
+  goto('sm');
+  initPresence();
+  startAutoRefresh();
+  subscribeRealtime();
+}
+function updateStaffHeader(){
+  const el=document.getElementById('smStaffLabel');
+  if(el) el.textContent=currentStaff||'';
+  const hd=document.getElementById('smHdStore');
+  const storeLabel='高松店';
+  if(hd) hd.textContent=storeLabel+' — ';
+}
+
+// ===== ステータス定義 =====
+const STATUS_DEF={
+  ready:     {label:'空車',     color:'#66dd99',bc:'#00cc6635',bg:'#00cc6612',stripe:'#00aa55'},
+  out:       {label:'貸出中',   color:'#ffcc55',bc:'#ffaa0035',bg:'#ffaa0012',stripe:'#ff8800'},
+  returning: {label:'返却待ち', color:'#ff8888',bc:'#ff444435',bg:'#ff444412',stripe:'#ff4444'},
+  returned:  {label:'返却済み', color:'#44ddbb',bc:'#00ccaa35',bg:'#00ccaa12',stripe:'#00aa88'},
+  maintenance:{label:'整備中',  color:'#88aaff',bc:'#4488ff35',bg:'#4488ff12',stripe:'#3366ee'},
+};
+function statusEmoji(s){return{ready:'🟢',out:'🟡',returning:'🔴',returned:'✅',maintenance:'🔧'}[s]||'⚪';}
+
+// ===== 車両一覧を Supabase から読み込む =====
+let vehiclesCache=[];
+async function loadVehicles(){
+  const list=document.getElementById('smList');
+  // キャッシュがあれば即描画（"読み込み中..."表示なし）
+  const hasCache=vehiclesCache.length>0;
+  if(!hasCache){
+    list.innerHTML='<div style="text-align:center;padding:40px 0;color:#8899bb;font-size:13px;">読み込み中...</div>';
+  }
+  try{
+    let vehicles=[];
+    // 高松店: vehicle_twinsのみ（独立DB）
+    const {data:twins}=await sb.from('vehicle_twins').select('*').eq('store','takamatsu').order('id');
+    const twMap={};(twins||[]).forEach(t=>twMap[t.id]=t);
+    vehicles=(twins||[]).map(tw=>({
+      id:tw.id,
+      status:tw.status||'ready',
+      current_damages:tw.current_damages||[],
+      current_resv_no:tw.current_resv_no||null,
+      current_customer:tw.current_customer||null,
+      current_resv:null,
+      last_check_at:tw.last_check_at||null,
+      last_check_staff:tw.last_check_staff||null,
+      last_event_id:tw.last_event_id||null,
+      odometer:tw.odometer||0,
+      rental_count:tw.rental_count||0,
+      vehicles:{name:tw.id,plate_no:tw.id,code:tw.id,class_id:'OTH'}
+    }));
+    const vcResvMap={};
+    vehiclesCache=vehicles;
+    renderVehicleList(vehiclesCache,currentStore);
+    updateSmStats(vehiclesCache);
+    // vehicle_twinsが'out'なのに予約がない車両をDBでもreadyにクリーンアップ（バックグラウンド）
+    vehicles.filter(v=>twMap[v.id]?.status==='out'&&!vcResvMap[v.id]).forEach(v=>{
+      sb.from('vehicle_twins').update({status:'ready',current_resv_no:null,current_customer:null}).eq('id',v.id).then(()=>console.log('[cleanup] reset',v.id,'to ready'));
+    });
+    const storeLabel='高松店';
+    const el=document.getElementById('smHdStore');
+    if(el) el.textContent=`${storeLabel} — ${vehicles.length}台`;
+  }catch(e){
+    list.innerHTML='<div style="text-align:center;padding:40px 0;color:#ff8888;font-size:13px;">読み込みエラー</div>';
+    console.error('loadVehicles:',e);
+  }
+}
+
+// ===== クラス定義 =====
+const NAHA_CLASS_DEF={
+  'A':{name:'Aクラス',label:'アルファード'},
+  'B':{name:'Bクラス',label:'ノアH / ヴォクシー / セレナH / アルファードM / ヴェルファイア'},
+  'C':{name:'Cクラス',label:'ライズ / ヤリスクロス（コンパクトSUV）'},
+  'D':{name:'Dクラス',label:'ノアM / エスクァイア / セレナM（ガソリンミニバン）'},
+  'F':{name:'Fクラス',label:'アクア / ノート / ヴィッツ（コンパクト）'},
+  'H':{name:'Hクラス',label:'プリウス / プリウスα（ハイブリッドセダン）'},
+};
+const SPK_CLASS_DEF={
+  'LUX':{name:'高級ミニバン',label:'アルファード / ヴェルファイア'},
+  'MPV':{name:'ミニバン',label:'デリカD5 / ノア / ステップワゴン'},
+  'SUV':{name:'SUV',label:'CX-5 / ハリアー'},
+  'CSUV':{name:'コンパクトSUV',label:'CX-3 / ロッキー'},
+  'SDN':{name:'セダン',label:'アクセラ / カローラフィールダー'},
+  'CPT':{name:'コンパクト',label:'ソリオ'},
+  'OTH':{name:'その他',label:''},
+};
+function spkClass(name){
+  if(!name) return 'OTH';
+  // 高級ミニバン
+  if(name.includes('アルファード')||name.includes('ヴェルファイア')) return 'LUX';
+  // ミニバン
+  if(name.includes('デリカ')||name.includes('ノア')||name.includes('ステップワゴン')) return 'MPV';
+  // SUV（大型）
+  if(name.includes('CX-5')||name.includes('ハリアー')) return 'SUV';
+  // コンパクトSUV
+  if(name.includes('CX-3')||name.includes('ロッキー')) return 'CSUV';
+  // セダン
+  if(name.includes('アクセラ')||name.includes('カローラ')) return 'SDN';
+  // コンパクト
+  if(name.includes('ソリオ')) return 'CPT';
+  return 'OTH';
+}
+
+function renderVehicleList(vehicles, store){
+  const list=document.getElementById('smList');
+  if(!vehicles||vehicles.length===0){
+    list.innerHTML='<div style="text-align:center;padding:40px 0;color:#8899bb;">車両データなし</div>';
+    return;
+  }
+  // store引数がなければグローバル変数を使う
+  const st2='takamatsu';
+  const classDef=SPK_CLASS_DEF;
+  // クラス順にグループ化
+  const groups={};
+  vehicles.forEach(v=>{
+    const cid=(v.vehicles?.class_id)||'OTH';
+    if(!groups[cid]) groups[cid]=[];
+    groups[cid].push(v);
+  });
+  const classOrder=['LUX','MPV','SUV','CSUV','SDN','CPT','OTH'];
+
+  let html='';
+  classOrder.forEach(cid=>{
+    const list2=groups[cid];
+    if(!list2||list2.length===0) return;
+    const cd=classDef[cid]||{name:cid,label:''};
+    // ステータス別カウント
+    const returning=list2.filter(v=>v.status==='returning').length;
+    const out=list2.filter(v=>v.status==='out').length;
+    const maint=list2.filter(v=>v.status==='maintenance').length;
+    let statusNote='';
+    if(returning>0) statusNote+=`<span style="color:#ff5555;font-weight:700;">${returning}件返却待ち</span> `;
+    if(out>0) statusNote+=`<span style="color:#ff8800;">${out}件貸出中</span> `;
+    if(maint>0) statusNote+=`<span style="color:#5577ee;">${maint}件整備中</span> `;
+    html+=`
+    <div class="sm-class-hd">
+      <div class="sm-class-badge">${cid}</div>
+      <div>
+        <div class="sm-class-name">${cd.name} <span style="color:#4488aa;font-size:10px;">${cd.label}</span></div>
+        ${statusNote?`<div style="font-size:10px;margin-top:1px;">${statusNote}</div>`:''}
+      </div>
+      <div class="sm-class-count">${list2.length}台</div>
+    </div>
+    <div class="sm-cards-grid">`;
+    list2.forEach(v=>{
+      const vInfo=v.vehicles||{};
+      const st=STATUS_DEF[v.status]||STATUS_DEF.ready;
+      const dmgCnt=(v.current_damages||[]).length;
+      const isReg=!!v.last_event_id;
+      const resv=v.current_resv;
+      let resvLine='';
+      if(resv){
+        const _td=new Date();const todayStr=_td.getFullYear()+'-'+String(_td.getMonth()+1).padStart(2,'0')+'-'+String(_td.getDate()).padStart(2,'0');
+        const isLend=resv.lend_date===todayStr;
+        const isReturn=resv.return_date===todayStr;
+        const tag=isLend&&isReturn?'🚗 本日貸出／返却':isLend?'🚗 本日貸出':isReturn?'📹 本日返却':'📋';
+        resvLine=`<div style="font-size:9px;color:#6688aa;margin-top:3px;line-height:1.4;">${tag} ${resv.name||''} <span style="color:#4488cc;font-family:monospace;">${resv.id||''}</span></div>`;
+      } else if(v.current_resv_no){
+        resvLine=`<div style="font-size:9px;color:#6688aa;margin-top:3px;">📋 ${v.current_customer||''} <span style="color:#4488cc;">${v.current_resv_no}</span></div>`;
+      }
+      // SM カードはタップのみ → S0へ（アクションはS0内で操作）
+      const bottomArea=isReg
+        ?''
+        :`<div style="padding:0 12px 10px;"><button class="sm-act-btn sm-act-init" onclick="event.stopPropagation();smAction('${v.id}','init')" style="width:100%;touch-action:manipulation;">⚡ 初期登録する（必須）</button></div>`;
+      html+=`
+      <div class="sm-card" id="smcard_${v.id}" onclick="openVehicle('${v.id}')" style="cursor:pointer;" ontouchstart="">
+        <div class="sm-card-top">
+          <div class="sm-stripe" style="background:${st.stripe};"></div>
+          <div class="sm-info">
+            <div class="sm-vno">${vInfo.plate_no||v.id}</div>
+            <div class="sm-model">${vInfo.name||''} <span style="color:#9bb;">/ ${v.id}</span></div>
+            <div class="sm-status-row">
+              <div class="sm-badge" style="color:${st.color};border-color:${st.bc};background:${st.bg};">
+                ${statusEmoji(v.status)} ${st.label}
+              </div>
+              ${dmgCnt>0?`<div class="sm-dmg">傷${dmgCnt}件</div>`:''}
+              ${!isReg?`<div class="sm-badge-unreg">⚡ 要初期登録</div>`:''}
+            </div>
+            ${resvLine}
+            <div class="sm-presence-inline" id="spres_${v.id}"></div>
+          </div>
+          <div style="color:#b0c4dd;font-size:18px;padding-right:8px;flex-shrink:0;">›</div>
+        </div>
+        ${bottomArea}
+      </div>`;
+    });
+    html+=`</div>`;
+  });
+  list.innerHTML=html;
+}
+
+function updateSmStats(vehicles){
+  document.getElementById('cntReturning').textContent=vehicles.filter(v=>v.status==='returning').length;
+  document.getElementById('cntOut').textContent=vehicles.filter(v=>v.status==='out').length;
+  document.getElementById('cntReady').textContent=vehicles.filter(v=>v.status==='ready').length;
+  document.getElementById('cntMaint').textContent=vehicles.filter(v=>v.status==='maintenance').length;
+  const unregCnt=vehicles.filter(v=>!v.last_event_id).length;
+  const cntEl=document.getElementById('cntUnreg');
+  if(cntEl) cntEl.textContent=unregCnt;
+  const banner=document.getElementById('smUnregBanner');
+  if(banner){
+    if(unregCnt>0){
+      banner.style.display='flex';
+      const cnt=document.getElementById('smUnregCount');
+      if(cnt) cnt.textContent=unregCnt;
+    } else {
+      banner.style.display='none';
+    }
+  }
+}
+
+// ===== SMカード内ボタン直接操作 =====
+function smAction(vId, action){
+  currentVehicleId=vId;
+  const v=vehiclesCache.find(x=>x.id===vId);
+  if(!v) return;
+  if(action==='view'){
+    openVehicle(vId); // S0（現状確認・展開図表示）
+  } else if(action==='edit'){
+    openDamageEdit('s0');
+  } else if(action==='checkout'){
+    goto('sc0');
+  } else if(action==='return'){
+    startReturnCheck();
+  } else if(action==='init'){
+    startInitialRegistration();
+  } else if(action==='chain'){
+    goto('sc');
+  }
+}
+
+// ===== 車両詳細を開く =====
+async function openVehicle(vehicleId){
+  currentVehicleId=vehicleId;
+  goto('s0');
+
+  // キャッシュから即表示
+  const cached=vehiclesCache.find(v=>v.id===vehicleId);
+  if(cached){
+    renderS0(cached);
+    renderInspectionMap(cached.current_damages||[]);
+  }
+
+  // vehicle_twinsから最新ダメージ状態を取得
+  const {data:twin}=await sb.from('vehicle_twins').select('*').eq('id',vehicleId).single();
+  if(twin){
+    const idx=vehiclesCache.findIndex(v=>v.id===vehicleId);
+    if(idx>=0){
+      vehiclesCache[idx]={...vehiclesCache[idx],...twin};
+      renderS0(vehiclesCache[idx]);
+      renderInspectionMap(vehiclesCache[idx].current_damages||[]);
+    }
+  }
+}
+
+function renderS0(v){
+  const vInfo=v.vehicles||{};
+  const st=STATUS_DEF[v.status]||STATUS_DEF.ready;
+  const storeLabel='高松店';
+  setText('s0StoreLabel',`BUDDICA / ${storeLabel}`);
+  setText('s0Vno',vInfo.plate_no||v.id);
+  setText('s0Model',`${vInfo.name||''} ／ ${v.id}`);
+  const badge=document.getElementById('s0StatusBadge');
+  if(badge){
+    badge.textContent=`${statusEmoji(v.status)} ${st.label}`;
+    badge.style.cssText=`display:inline-block;font-size:10px;padding:4px 11px;border-radius:16px;font-weight:700;border:1px solid ${st.bc};background:${st.bg};color:${st.color};margin-top:7px;`;
+  }
+  // 予約情報バナー
+  const resvInfoEl=document.getElementById('s0ResvInfo');
+  if(resvInfoEl){
+    const resv=v.current_resv;
+    if(resv){
+      const _td=new Date();const todayStr=_td.getFullYear()+'-'+String(_td.getMonth()+1).padStart(2,'0')+'-'+String(_td.getDate()).padStart(2,'0');
+      const isLend=resv.lend_date===todayStr;
+      const isReturn=resv.return_date===todayStr;
+      const tag=isLend&&isReturn?'🚗📹 本日貸出／返却':isLend?'🚗 本日貸出':isReturn?'📹 本日返却':'📋';
+      resvInfoEl.innerHTML=`<div style="background:#162d52;border:1px solid #2a4a70;border-radius:10px;padding:8px 12px;display:flex;align-items:center;gap:8px;">
+        <div style="flex:1;">
+          <div style="font-size:11px;font-weight:700;color:#fff;">${tag} ${resv.name||'—'} 様 <span style="font-size:9px;padding:1px 6px;border-radius:4px;background:#ffffff15;color:#88ccff;margin-left:4px;">${resv.ota||''}</span></div>
+          <div style="font-size:9px;color:#88aabb;margin-top:2px;">予約: <b style="color:#aaddff;">${resv.id||''}</b> ／ ${resv.lend_time||''} 〜 ${resv.return_date||''} ${resv.return_time||''}</div>
+        </div>
+      </div>`;
+    } else if(v.current_resv_no){
+      resvInfoEl.innerHTML=`<div style="background:#162d52;border:1px solid #2a4a70;border-radius:10px;padding:8px 12px;font-size:10px;color:#88aabb;">📋 ${v.current_customer||''} — ${v.current_resv_no}</div>`;
+    } else {
+      resvInfoEl.innerHTML='';
+    }
+  }
+  const lastCheck=v.last_check_at?fmtDate(v.last_check_at):'—';
+  const staff=v.last_check_staff||'—';
+  // 初期登録済みかどうか
+  const isRegistered=!!v.last_event_id;
+  if(isRegistered){
+    setText('s0LastCheck',`📅 最終チェック: ${lastCheck} ／ 担当: ${staff}`);
+  } else {
+    setText('s0LastCheck','⚡ 初期登録未完了 — チェーン起点が必要です');
+  }
+  // 統計
+  const statsRow=document.querySelector('.s0-stats-row');
+  if(statsRow) statsRow.innerHTML=`
+    <div class="s0-stat"><span class="k">走行距離</span><span class="v">${(v.odometer||0).toLocaleString()} km</span></div>
+    <div class="s0-stat"><span class="k">貸出回数</span><span class="v">${v.rental_count||0} 回</span></div>
+    <div class="s0-stat"><span class="k">記録傷</span><span class="v" style="color:${isRegistered?'#ff8888':'#ffcc66'};">${isRegistered?(v.current_damages||[]).length+'件':'未登録'}</span></div>`;
+  // チップ
+  updateS0Chips(v.current_damages||[], isRegistered);
+  // 初期登録バナー（ボタンで案内済みのため非表示）
+  const initBanner=document.getElementById('s0InitBanner');
+  if(initBanner) initBanner.innerHTML='';
+  const chainSection=document.getElementById('s0ChainSection');
+  if(chainSection) chainSection.innerHTML='';
+  const actionArea=document.getElementById('s0ActionArea');
+  if(actionArea){
+    if(!isRegistered){
+      actionArea.innerHTML=`
+        <div style="padding:0 0 max(env(safe-area-inset-bottom),28px);">
+          <button class="btn-init" onclick="startInitialRegistration()">⚡ 初期登録する — チェーン起点を作成</button>
+        </div>`;
+    } else {
+      // S0ハブ画面：貸出・返却を縦積み大ボタン ／ 傷編集・履歴・修理を横並び小ボタン
+      const isReturned=(v.status==='returned');
+      actionArea.innerHTML=`
+        <div style="padding:10px 0 max(env(safe-area-inset-bottom),20px);">
+          ${isReturned?`<div style="padding:7px 12px;border-radius:10px;background:#00aa5518;border:1px solid #00aa5540;color:#007733;font-size:11px;font-weight:700;text-align:center;margin-bottom:8px;">✅ 返却済み — 次の予約を待っています</div>`:''}
+          <button onclick="goto('sc0')" style="width:100%;padding:16px 10px;border-radius:13px;border:none;background:linear-gradient(135deg,#2266dd,#1144bb);color:#fff;font-size:14px;font-weight:700;cursor:pointer;touch-action:manipulation;margin-bottom:8px;box-shadow:0 4px 14px #2266dd30;">🚗 貸出チェック</button>
+          <button onclick="startReturnCheck()" style="width:100%;padding:16px 10px;border-radius:13px;border:none;background:linear-gradient(135deg,#cc5500,#994400);color:#fff;font-size:14px;font-weight:700;cursor:pointer;touch-action:manipulation;margin-bottom:14px;box-shadow:0 4px 14px #cc550030;">📋 返却チェック</button>
+          <div style="display:flex;gap:7px;">
+            <button onclick="openDamageEdit('s0')" style="flex:1;padding:12px 4px;border-radius:11px;border:1.5px solid #4488cc;background:#eef4fc;color:#2266cc;font-size:11px;font-weight:700;cursor:pointer;touch-action:manipulation;">✏️ 傷編集</button>
+            <button onclick="goto('sc')" style="flex:1;padding:12px 4px;border-radius:11px;border:1.5px solid #8899bb;background:#f4f8fc;color:#445566;font-size:11px;font-weight:700;cursor:pointer;touch-action:manipulation;">⛓ 履歴</button>
+            <button onclick="openRepairPage()" style="flex:1;padding:12px 4px;border-radius:11px;border:1.5px solid #ee8800;background:#fff8e6;color:#884400;font-size:11px;font-weight:700;cursor:pointer;touch-action:manipulation;">🔧 修理</button>
+          </div>
+        </div>`;
+    }
+  }
+}
+
+function updateS0Chips(damages, isRegistered){
+  const chips=document.getElementById('s0ChipsList');
+  if(!chips) return;
+  if(!isRegistered){
+    chips.innerHTML='<div class="chip" style="color:#ffbb55;border-color:#ee880035;background:#ee880010;">⚡ 初期登録を完了してください</div>';
+    return;
+  }
+  if(damages.length===0){chips.innerHTML='<div class="chip" style="color:#00aa55;border-color:#00aa5535;background:#00aa5510;">✓ 傷なし（クリーン）</div>';return;}
+  chips.innerHTML=damages.map(d=>{
+    const c=dmgColor(d);
+    return `<div class="chip" style="color:${c};border-color:${c}35;background:${c}10;">${d.location}</div>`;
+  }).join('');
+}
+
+// ===== ユーティリティ =====
+function setText(id,txt){const el=document.getElementById(id);if(el)el.textContent=txt;}
+function fmtDate(iso){
+  const d=new Date(iso);
+  return d.getFullYear()+'/'+(d.getMonth()+1+'').padStart(2,'0')+'/'+(d.getDate()+'').padStart(2,'0')+
+    ' '+(d.getHours()+'').padStart(2,'0')+':'+(d.getMinutes()+'').padStart(2,'0');
+}
+
+// ============================================================
+// ===== マルチユーザー同期システム =====
+// ============================================================
+
+// ----- 1. 安全な書き込み（常に最新DBデータを取得してから更新） -----
+// vehiclesCacheが古くても、直前にSupabaseから最新を取得するのでロストアップデートを防ぐ
+async function safeWriteDamages(vehicleId, mutationFn){
+  const{data,error}=await sb.from('vehicle_twins')
+    .select('current_damages')
+    .eq('id',vehicleId)
+    .single();
+  if(error) throw error;
+  const fresh=data?.current_damages||[];
+  const next=mutationFn(fresh);
+  // ローカルキャッシュも即反映
+  const idx=vehiclesCache.findIndex(v=>v.id===vehicleId);
+  if(idx>=0) vehiclesCache[idx].current_damages=next;
+  return next;
+}
+
+// ----- 2. 接続ステータス -----
+function setRtStatus(s){
+  const dot=document.getElementById('rtDot');
+  if(!dot) return;
+  dot.className='rt-dot'+(s==='live'?' live':s==='error'?' error':'');
+  dot.title=s==='live'?'🟢 リアルタイム同期中':s==='error'?'🔴 接続エラー — 自動リトライ中':'⚪ 接続中...';
+}
+
+// ----- 3. 更新通知バナー -----
+let _bannerTimer=null;
+function showUpdateBanner(msg){
+  const b=document.getElementById('updateBanner');
+  if(!b) return;
+  b.querySelector('.update-banner-msg').textContent=msg;
+  b.classList.add('show');
+  if(_bannerTimer) clearTimeout(_bannerTimer);
+  _bannerTimer=setTimeout(()=>b.classList.remove('show'),5000);
+}
+
+// ----- 4. Presence（在席管理） -----
+let presenceCh=null;
+let presenceState={}; // staffKey → {staff, screen, vehicleId}
+
+function initPresence(){
+  if(!currentStaff) return;
+  if(presenceCh){ try{sb.removeChannel(presenceCh);}catch(e){} }
+  // ランダムサフィックスで同一スタッフの複数デバイス対応
+  const myKey=currentStaff+'_'+Math.random().toString(36).slice(2,6);
+  presenceCh=sb.channel('bdc-presence-v1',{config:{presence:{key:myKey}}});
+  presenceCh
+    .on('presence',{event:'sync'},()=>{
+      const state=presenceCh.presenceState();
+      presenceState={};
+      Object.entries(state).forEach(([k,arr])=>{
+        const p=arr[0];
+        if(p&&p.staff&&p.staff!==currentStaff){
+          presenceState[k]=p;
+        }
+      });
+      renderPresenceBadges();
+      refreshS0EditingWarn();
+    })
+    .subscribe(async(status)=>{
+      if(status==='SUBSCRIBED'){
+        setRtStatus('live');
+        await updatePresence('sm',null);
+      } else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT'){
+        setRtStatus('error');
+      }
+    });
+}
+
+async function updatePresence(screen,vehicleId){
+  if(!presenceCh||!currentStaff) return;
+  try{ await presenceCh.track({staff:currentStaff,screen,vehicleId:vehicleId||null}); }catch(e){}
+}
+
+function renderPresenceBadges(){
+  // 全バッジをリセット
+  document.querySelectorAll('.sm-presence-inline').forEach(el=>el.innerHTML='');
+  // 各スタッフの位置にバッジを追加
+  Object.values(presenceState).forEach(p=>{
+    if(!p.vehicleId) return;
+    const el=document.getElementById('spres_'+p.vehicleId);
+    if(el){
+      const dot=document.createElement('span');
+      dot.className='sm-presence-dot';
+      dot.textContent='👁 '+p.staff;
+      el.appendChild(dot);
+    }
+  });
+}
+
+function refreshS0EditingWarn(){
+  const warn=document.getElementById('s0EditingWarn');
+  const names=document.getElementById('s0EditingWarnNames');
+  if(!warn||!names) return;
+  const others=Object.values(presenceState)
+    .filter(p=>p.vehicleId===currentVehicleId);
+  if(others.length>0){
+    warn.style.display='flex';
+    names.textContent=others.map(p=>p.staff+'さんが同時に閲覧中').join(' ／ ');
+  } else {
+    warn.style.display='none';
+  }
+}
+
+// ----- 5. 自動更新（SM画面：30秒間隔） -----
+let _autoRefreshTimer=null;
+function startAutoRefresh(){
+  if(_autoRefreshTimer) clearInterval(_autoRefreshTimer);
+  _autoRefreshTimer=setInterval(()=>{
+    if(document.getElementById('sm')?.classList.contains('active')){
+      // サイレント更新（リスト再描画なし → ボタン消えを防ぐ）
+      loadVehicles().then(()=>{
+        setTimeout(()=>renderPresenceBadges(),100);
+      });
+    }
+  },30000);
+}
+
+// ----- 6. S0リロード -----
+async function reloadS0(){
+  if(!currentVehicleId) return;
+  await openVehicle(currentVehicleId);
+  showToast('🔄 最新データに更新しました');
+}
+
+function subscribeRealtime(){
+  sb.channel('bdc-vehicle-twins-all')
+    .on('postgres_changes',{event:'INSERT',schema:'public',table:'vehicle_twins'},payload=>{
+      handleVehicleTwinChange(payload.new,'insert');
+    })
+    .on('postgres_changes',{event:'UPDATE',schema:'public',table:'vehicle_twins'},payload=>{
+      handleVehicleTwinChange(payload.new,'update');
+    })
+    .subscribe(status=>{
+      if(status==='SUBSCRIBED') setRtStatus('live');
+      else if(status==='CHANNEL_ERROR'||status==='TIMED_OUT') setRtStatus('error');
+    });
+}
+
+function handleVehicleTwinChange(updated, event){
+  if(updated.store!==currentStore) return;
+  const idx=vehiclesCache.findIndex(v=>v.id===updated.id);
+  if(idx<0){
+    if(event==='insert') loadVehicles(); // 新規車両は一覧再ロード
+    return;
+  }
+  const prevDmgCnt=(vehiclesCache[idx].current_damages||[]).length;
+  vehiclesCache[idx]={...vehiclesCache[idx],...updated};
+  // SMカード更新
+  const card=document.getElementById('smcard_'+updated.id);
+  if(card){
+    const tmp=document.createElement('div');
+    tmp.innerHTML=renderVehicleCard(vehiclesCache[idx]);
+    card.replaceWith(tmp.firstElementChild);
+  }
+  updateSmStats(vehiclesCache);
+  // 在席バッジは維持
+  renderPresenceBadges();
+  // S0が同じ車両なら更新
+  if(currentVehicleId===updated.id){
+    renderS0(vehiclesCache[idx]);
+    renderInspectionMap(vehiclesCache[idx].current_damages||[]);
+    refreshS0EditingWarn();
+  }
+  // 自分以外が更新したら通知バナー
+  if(updated.last_check_staff&&updated.last_check_staff!==currentStaff){
+    const newDmgCnt=(updated.current_damages||[]).length;
+    const diff=newDmgCnt-prevDmgCnt;
+    const diffTxt=diff>0?` / 傷+${diff}件`:diff<0?` / 傷${diff}件`:' / 更新';
+    const plate=vehiclesCache[idx]?.vehicles?.plate_no||updated.id;
+    showUpdateBanner(`${updated.last_check_staff}さんが ${plate} を更新${diffTxt}`);
+  }
+}
+function renderVehicleCard(v){
+  const vInfo=v.vehicles||{};
+  const st=STATUS_DEF[v.status]||STATUS_DEF.ready;
+  const dmgCnt=(v.current_damages||[]).length;
+  const resvTxt=v.current_resv_no?(' '+v.current_resv_no):'';
+  return `<div class="sm-card" onclick="openVehicle('${v.id}')" id="smcard_${v.id}">
+    <div class="sm-stripe" style="background:${st.stripe};"></div>
+    <div class="sm-thumb"><svg viewBox="0 0 68 40"><rect width="68" height="40" fill="#0a0e18"/><path d="M7,14 L61,14 L61,30 L7,30Z" fill="#d0d0cc"/><path d="M15,14 L53,14 L50,29 L18,29Z" fill="#1a2836" fill-opacity=".88"/><circle cx="18" cy="35" r="4.5" fill="#222"/><circle cx="50" cy="35" r="4.5" fill="#222"/>${dmgCnt>0?'<circle cx="25" cy="21" r="3" fill="#ff444470" stroke="#ff4444" stroke-width="1"/>':''}</svg></div>
+    <div class="sm-info"><div class="sm-vno">${vInfo.plate_no||v.id}</div><div class="sm-model">${vInfo.name||''} <span style="color:#9bb;">/ ${v.id}</span></div>
+    <div class="sm-status-row"><div class="sm-badge" style="color:${st.color};border-color:${st.bc};background:${st.bg};">${statusEmoji(v.status)} ${st.label}${resvTxt}</div>${dmgCnt>0?`<div class="sm-dmg">傷${dmgCnt}件</div>`:''}</div><div class="sm-presence-inline" id="spres_${v.id}"></div></div>
+    <div class="sm-arr">›</div></div>`;
+}
+
+// ===== 起動処理 =====
+initLogin();
+// 前回ログイン済みなら直接 SM へ
+if(currentStaff){
+  updateStaffHeader();
+  goto('sm');
+  loadVehicles();
+  subscribeRealtime();
+  initPresence();
+  startAutoRefresh();
+}
+// AIキーボタン初期状態
+setTimeout(()=>updateSmAiBtn(), 100);
+
+// ===== 車両一覧リロード =====
+async function reloadVehicles(){
+  const btn=document.getElementById('smReloadBtn');
+  if(btn){btn.textContent='⏳';btn.style.pointerEvents='none';}
+  await loadVehicles();
+  if(btn){btn.textContent='🔄';btn.style.pointerEvents='all';}
+  showToast('✓ 車両一覧を更新しました');
+}
+
+// ===== 日付 =====
+(()=>{const d=new Date();const smDate=document.getElementById('smDate');if(smDate)smDate.textContent=d.getFullYear()+'/'+(d.getMonth()+1+'').padStart(2,'0')+'/'+(d.getDate()+'').padStart(2,'0');})();
+
+// ===== 車両俯瞰図（カーチェックシート形式） =====
+const INSP_SVG=`<svg viewBox="-5 -25 270 430" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%;">
+<defs>
+  <linearGradient id="gBody" x1="0" y1="0" x2="0" y2="1">
+    <stop offset="0%" stop-color="#dce8f0"/>
+    <stop offset="100%" stop-color="#cddae6"/>
+  </linearGradient>
+  <linearGradient id="gDoor" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0%" stop-color="#d0dde8"/>
+    <stop offset="100%" stop-color="#c8d8e4"/>
+  </linearGradient>
+</defs>
+<!-- 方向バッジ（上=フロント / 下=リア / 左=左(助手席) / 右=右(運転席)） -->
+<rect x="80" y="-22" width="100" height="18" rx="5" fill="#1a8844" opacity=".88"/>
+<text x="130" y="-10" text-anchor="middle" fill="#fff" font-size="7" font-weight="900" font-family="-apple-system,sans-serif">▲ フロント FRONT</text>
+<rect x="80" y="389" width="100" height="18" rx="5" fill="#d44422" opacity=".88"/>
+<text x="130" y="401" text-anchor="middle" fill="#fff" font-size="7" font-weight="900" font-family="-apple-system,sans-serif">リア REAR ▼</text>
+<text x="0" y="198" text-anchor="start" fill="#88aabb" font-size="7" font-family="-apple-system,sans-serif">左</text>
+<text x="260" y="198" text-anchor="end" fill="#88aabb" font-size="7" font-family="-apple-system,sans-serif">右</text>
+<!-- 車両本体: 縦向き フロント=上・リア=下（Y軸反転） -->
+<g transform="translate(130,195) scale(1,-1) translate(-130,-195)">
+<rect width="260" height="390" fill="#e8f0f6" rx="6"/>
+
+<!-- ===== リアバンパー ===== -->
+<rect id="iz-rear-bumper" x="85" y="18" width="90" height="22" rx="4" fill="#c8aaa0" stroke="#aa4422" stroke-width="1.5"/>
+
+<!-- ===== トランク / リアゲート ===== -->
+<rect id="iz-trunk" x="85" y="40" width="90" height="38" rx="2" fill="url(#gBody)" stroke="#4477aa" stroke-width="1.5"/>
+<!-- リアガラス -->
+<rect x="97" y="45" width="66" height="24" rx="2" fill="#a8c4d8" stroke="#3366aa" stroke-width="1.2"/>
+
+<!-- ===== 左リアフェンダー ===== -->
+<path id="iz-lr-fender" d="M85,42 L56,52 L56,128 L85,128Z" fill="#c8d8e4" stroke="#4477aa" stroke-width="1.2"/>
+<!-- ===== 右リアフェンダー ===== -->
+<path id="iz-rr-fender" d="M175,42 L204,52 L204,128 L175,128Z" fill="#c8d8e4" stroke="#4477aa" stroke-width="1.2"/>
+
+<!-- ===== 後輪（左） ===== -->
+<ellipse id="iz-lr-tire" cx="40" cy="100" rx="15" ry="24" fill="#6688aa" stroke="#334466" stroke-width="1.5"/>
+<ellipse cx="40" cy="100" rx="9" ry="15" fill="#8899bb" stroke="#4466aa" stroke-width="1"/>
+<line x1="40" y1="85" x2="40" y2="115" stroke="#ffffff60" stroke-width="0.8"/>
+<line x1="25" y1="100" x2="55" y2="100" stroke="#ffffff60" stroke-width="0.8"/>
+<!-- ===== 後輪（右） ===== -->
+<ellipse id="iz-rr-tire" cx="220" cy="100" rx="15" ry="24" fill="#6688aa" stroke="#334466" stroke-width="1.5"/>
+<ellipse cx="220" cy="100" rx="9" ry="15" fill="#8899bb" stroke="#4466aa" stroke-width="1"/>
+<line x1="220" y1="85" x2="220" y2="115" stroke="#ffffff60" stroke-width="0.8"/>
+<line x1="205" y1="100" x2="235" y2="100" stroke="#ffffff60" stroke-width="0.8"/>
+
+<!-- ===== 左リアドア ===== -->
+<rect id="iz-lr-door" x="25" y="128" width="60" height="74" rx="3" fill="url(#gDoor)" stroke="#4477aa" stroke-width="1.5"/>
+<rect x="30" y="161" width="14" height="5" rx="2" fill="#aabbcc" stroke="#334466" stroke-width="1"/>
+
+<!-- ===== 右リアドア ===== -->
+<rect id="iz-rr-door" x="175" y="128" width="60" height="74" rx="3" fill="url(#gDoor)" stroke="#4477aa" stroke-width="1.5"/>
+<rect x="216" y="161" width="14" height="5" rx="2" fill="#aabbcc" stroke="#334466" stroke-width="1"/>
+
+<!-- ===== 車体中央（ルーフ） ===== -->
+<rect id="iz-roof" x="85" y="78" width="90" height="234" rx="4" fill="url(#gBody)" stroke="#4477aa" stroke-width="1.5"/>
+<!-- リアガラス帯 -->
+<rect id="iz-rear-glass" x="93" y="84" width="74" height="38" rx="2" fill="#a8c4d8" stroke="#3366aa" stroke-width="1.2"/>
+<!-- リア席窓 -->
+<rect id="iz-lr-window" x="94" y="130" width="32" height="28" rx="2" fill="#a8c4d8" stroke="#3366aa" stroke-width="1"/>
+<rect id="iz-rr-window" x="134" y="130" width="32" height="28" rx="2" fill="#a8c4d8" stroke="#3366aa" stroke-width="1"/>
+<!-- フロント席窓 -->
+<rect id="iz-lf-window" x="94" y="205" width="32" height="36" rx="2" fill="#a8c4d8" stroke="#3366aa" stroke-width="1"/>
+<rect id="iz-rf-window" x="134" y="205" width="32" height="36" rx="2" fill="#a8c4d8" stroke="#3366aa" stroke-width="1"/>
+<!-- フロントガラス帯 -->
+<rect id="iz-front-glass" x="93" y="248" width="74" height="36" rx="2" fill="#a8c4d8" stroke="#3366aa" stroke-width="1.2"/>
+<!-- Bピラー -->
+<rect x="128" y="126" width="4" height="122" fill="#9aaabb" opacity=".9"/>
+<!-- ドア境界線 -->
+<line x1="85" y1="128" x2="175" y2="128" stroke="#334466aa" stroke-width="1" stroke-dasharray="4,3"/>
+<line x1="85" y1="202" x2="175" y2="202" stroke="#334466aa" stroke-width="1" stroke-dasharray="4,3"/>
+<line x1="85" y1="312" x2="175" y2="312" stroke="#334466aa" stroke-width="1" stroke-dasharray="4,3"/>
+<!-- 車体-ドア境界 -->
+<line x1="85" y1="78" x2="85" y2="312" stroke="#33446680" stroke-width="0.8"/>
+<line x1="175" y1="78" x2="175" y2="312" stroke="#33446680" stroke-width="0.8"/>
+
+<!-- ===== 左フロントドア ===== -->
+<rect id="iz-lf-door" x="25" y="202" width="60" height="74" rx="3" fill="url(#gDoor)" stroke="#4477aa" stroke-width="1.5"/>
+<rect x="30" y="235" width="14" height="5" rx="2" fill="#aabbcc" stroke="#334466" stroke-width="1"/>
+
+<!-- ===== 右フロントドア ===== -->
+<rect id="iz-rf-door" x="175" y="202" width="60" height="74" rx="3" fill="url(#gDoor)" stroke="#4477aa" stroke-width="1.5"/>
+<rect x="216" y="235" width="14" height="5" rx="2" fill="#aabbcc" stroke="#334466" stroke-width="1"/>
+
+<!-- ===== ドアミラー ===== -->
+<rect id="iz-l-mirror" x="61" y="270" width="23" height="11" rx="3" fill="#b0c4d4" stroke="#3366aa" stroke-width="1.2"/>
+<rect id="iz-r-mirror" x="176" y="270" width="23" height="11" rx="3" fill="#b0c4d4" stroke="#3366aa" stroke-width="1.2"/>
+
+<!-- ===== 左フロントフェンダー ===== -->
+<path id="iz-lf-fender" d="M85,260 L56,266 L56,330 L85,312Z" fill="#c8d8e4" stroke="#4477aa" stroke-width="1.2"/>
+<!-- ===== 右フロントフェンダー ===== -->
+<path id="iz-rf-fender" d="M175,260 L204,266 L204,330 L175,312Z" fill="#c8d8e4" stroke="#4477aa" stroke-width="1.2"/>
+
+<!-- ===== 前輪（左） ===== -->
+<ellipse id="iz-lf-tire" cx="40" cy="300" rx="15" ry="24" fill="#6688aa" stroke="#334466" stroke-width="1.5"/>
+<ellipse cx="40" cy="300" rx="9" ry="15" fill="#8899bb" stroke="#4466aa" stroke-width="1"/>
+<line x1="40" y1="285" x2="40" y2="315" stroke="#ffffff60" stroke-width="0.8"/>
+<line x1="25" y1="300" x2="55" y2="300" stroke="#ffffff60" stroke-width="0.8"/>
+<!-- ===== 前輪（右） ===== -->
+<ellipse id="iz-rf-tire" cx="220" cy="300" rx="15" ry="24" fill="#6688aa" stroke="#334466" stroke-width="1.5"/>
+<ellipse cx="220" cy="300" rx="9" ry="15" fill="#8899bb" stroke="#4466aa" stroke-width="1"/>
+<line x1="220" y1="285" x2="220" y2="315" stroke="#ffffff60" stroke-width="0.8"/>
+<line x1="205" y1="300" x2="235" y2="300" stroke="#ffffff60" stroke-width="0.8"/>
+
+<!-- ===== ボンネット ===== -->
+<rect id="iz-hood" x="85" y="312" width="90" height="44" rx="2" fill="url(#gBody)" stroke="#4477aa" stroke-width="1.5"/>
+<line x1="130" y1="314" x2="130" y2="354" stroke="#33446640" stroke-width="0.8"/>
+
+<!-- ===== フロントバンパー ===== -->
+<rect id="iz-front-bumper" x="85" y="356" width="90" height="22" rx="4" fill="#9acca8" stroke="#1a7744" stroke-width="1.5"/>
+<rect x="105" y="360" width="50" height="12" rx="1" fill="#d4eed8" stroke="#33886640" stroke-width="0.5"/>
+<text x="130" y="369" text-anchor="middle" fill="#2a3a50" font-size="5" font-family="monospace" font-weight="600"></text>
+
+<!-- ===== フロントスポイラー（ロアスカート） ===== -->
+<rect id="iz-front-spoiler" x="88" y="378" width="84" height="7" rx="2" fill="#5bb876" stroke="#1a7744" stroke-width="1"/>
+<text x="130" y="384" text-anchor="middle" fill="#ffffff88" font-size="4" font-family="monospace">SPOILER</text>
+
+<!-- ===== テールゲートスポイラー ===== -->
+<rect id="iz-rear-spoiler" x="90" y="11" width="80" height="7" rx="2" fill="#cc6644" stroke="#aa3322" stroke-width="1"/>
+<text x="130" y="17" text-anchor="middle" fill="#ffffff88" font-size="4" font-family="monospace">SPOILER</text>
+
+<!-- ===== 右サイドスポイラー（運転席 = 画面上） ===== -->
+<rect id="iz-rside-spoiler" x="16" y="148" width="9" height="158" rx="3" fill="#88aabb" stroke="#4477aa" stroke-width="1"/>
+
+<!-- ===== 左サイドスポイラー（助手席 = 画面下） ===== -->
+<rect id="iz-lside-spoiler" x="235" y="148" width="9" height="158" rx="3" fill="#88aabb" stroke="#4477aa" stroke-width="1"/>
+
+<!-- ===== タイヤ透明クリック領域（PC pointer-events対策・最上層）===== -->
+<rect data-tire="iz-lr-tire" x="18" y="68" width="44" height="64" rx="10" fill="transparent" stroke="none" style="cursor:pointer;pointer-events:all;"/>
+<rect data-tire="iz-rr-tire" x="198" y="68" width="44" height="64" rx="10" fill="transparent" stroke="none" style="cursor:pointer;pointer-events:all;"/>
+<rect data-tire="iz-lf-tire" x="18" y="268" width="44" height="64" rx="10" fill="transparent" stroke="none" style="cursor:pointer;pointer-events:all;"/>
+<rect data-tire="iz-rf-tire" x="198" y="268" width="44" height="64" rx="10" fill="transparent" stroke="none" style="cursor:pointer;pointer-events:all;"/>
+</g>
+</svg>`;
+
+// ゾーンID → {name, cx%, cy%} マッピング
+// 縦向き: フロント=上(cy小), リア=下(cy大)
+// 左=画面左(助手席/cx小), 右=画面右(運転席/cx大)
+// lf/lr要素=SVG左=画面左=左(助手席), rf/rr要素=SVG右=画面右=右(運転席)
+// viewBox: -5,-25 ~ 265,405 (w=270,h=430)
+// cx%=(x_svg+5)/270*100, cy%=(415-y_svg)/430*100
+const ZONE_MAP={
+  'フロントバンパー':    {id:'iz-front-bumper',  cx:50,   cy:11.2},
+  'ボンネット':          {id:'iz-hood',           cx:50,   cy:18.8},
+  'フロントガラス':      {id:'iz-front-glass',    cx:50,   cy:34.7},
+  '左フロントフェンダー':{id:'iz-lf-fender',      cx:25.9, cy:28.6},
+  '右フロントフェンダー':{id:'iz-rf-fender',      cx:74.1, cy:28.6},
+  '左フロントドア':      {id:'iz-lf-door',        cx:22.2, cy:40.9},
+  '右フロントドア':      {id:'iz-rf-door',        cx:77.8, cy:40.9},
+  'ルーフ':              {id:'iz-roof',            cx:50,   cy:51.2},
+  '左リアドア':          {id:'iz-lr-door',         cx:22.2, cy:58.1},
+  '右リアドア':          {id:'iz-rr-door',         cx:77.8, cy:58.1},
+  '左リアフェンダー':    {id:'iz-lr-fender',       cx:25.9, cy:76.0},
+  '右リアフェンダー':    {id:'iz-rr-fender',       cx:74.1, cy:76.0},
+  'リアバンパー左':      {id:'iz-rear-bumper',     cx:40.7, cy:89.8},
+  'リアバンパー右':      {id:'iz-rear-bumper',     cx:59.3, cy:89.8},
+  'リアバンパー':        {id:'iz-rear-bumper',     cx:50,   cy:89.8},
+  'バックドア':          {id:'iz-trunk',           cx:50,   cy:82.8},
+  '左ドアミラー':        {id:'iz-l-mirror',        cx:28.5, cy:32.4},
+  '右ドアミラー':        {id:'iz-r-mirror',        cx:71.3, cy:32.4},
+  // タイヤ: lf/lr=左=助手席, rf/rr=右=運転席
+  '左前タイヤ':          {id:'iz-lf-tire',         cx:16.7, cy:26.7},
+  '右前タイヤ':          {id:'iz-rf-tire',         cx:83.3, cy:26.7},
+  '左後タイヤ':          {id:'iz-lr-tire',         cx:16.7, cy:73.3},
+  '右後タイヤ':          {id:'iz-rr-tire',         cx:83.3, cy:73.3},
+  // ガラス
+  'リアガラス':          {id:'iz-rear-glass',      cx:50,   cy:72.6},
+  '左リア窓':            {id:'iz-lr-window',       cx:42.6, cy:63.0},
+  '右リア窓':            {id:'iz-rr-window',       cx:57.4, cy:63.0},
+  '左フロント窓':        {id:'iz-lf-window',       cx:42.6, cy:44.7},
+  '右フロント窓':        {id:'iz-rf-window',       cx:57.4, cy:44.7},
+  'ルーフ（リア）':      {id:'iz-rear-glass',      cx:50,   cy:70.0},
+  // スポイラー: iz-rside-spoiler=SVG左x=16=画面左=左(助手席)
+  'フロントスポイラー':  {id:'iz-front-spoiler',   cx:50,   cy:7.8 },
+  'テールゲートスポイラー':{id:'iz-rear-spoiler',  cx:50,   cy:93.1},
+  '左サイドスポイラー':  {id:'iz-rside-spoiler',   cx:9.4,  cy:43.7},
+  '右サイドスポイラー':  {id:'iz-lside-spoiler',   cx:90.6, cy:43.7},
+};
+
+// damage severity → color
+const SEV_COLOR={major:'#ff3333',moderate:'#ff8800',minor:'#ffcc00',scratch:'#ff4444',dent:'#ff8800',chip:'#ffaa00',crack:'#4488ff',stone_chip:'#22aaee'};
+function dmgColor(d){ return SEV_COLOR[d.severity]||SEV_COLOR[d.type]||'#ff8888'; }
+
+// ゾーンID → 正式名称（逆引き）
+const ZONE_ID_TO_NAME={};
+Object.entries(ZONE_MAP).forEach(([name,{id}])=>{ if(!ZONE_ID_TO_NAME[id]) ZONE_ID_TO_NAME[id]=name; });
+
+// ===== 汎用マップ描画 =====
+// SVG viewBox: width=270, height=430（縦向き、フロント=上）
+const SVG_VB_W=270, SVG_VB_H=430;
+// ピン座標をコンテナ比率→実際のSVG描画領域へ補正
+function pinPct(cx, cy, W, H){
+  if(!W||!H) return {l:cx,t:cy};
+  const scale=Math.min(W/SVG_VB_W, H/SVG_VB_H);
+  const rw=SVG_VB_W*scale, rh=SVG_VB_H*scale;
+  const xOff=(W-rw)/2, yOff=(H-rh)/2;
+  return {
+    l:(xOff + cx/100*rw)/W*100,
+    t:(yOff + cy/100*rh)/H*100
+  };
+}
+
+function renderMapInto(viewId, legendId, damages, newIds, clickable){
+  const view=document.getElementById(viewId);
+  if(!view) return;
+  // コンテナサイズを先取得（SVG挿入前）
+  const W=view.clientWidth||view.offsetWidth||0;
+  const H=view.clientHeight||view.offsetHeight||0;
+  view.innerHTML=INSP_SVG;
+  const damagedZoneIds=new Set();
+
+  (damages||[]).forEach(d=>{
+    let zone=null;
+    const loc=d.location||'';
+    if(ZONE_MAP[loc]) zone=ZONE_MAP[loc];
+    if(!zone){
+      const keys=Object.keys(ZONE_MAP).sort((a,b)=>b.length-a.length);
+      for(const k of keys){ if(loc.includes(k)){ zone=ZONE_MAP[k]; break; }}
+    }
+    if(!zone) return;
+    damagedZoneIds.add(zone.id);
+
+    const isNew=newIds&&newIds.has(d.id);
+    const c=isNew?'#ff3333':dmgColor(d);
+    const pin=document.createElement('div');
+    pin.className='ipin'+(clickable?' clickable':'');
+    // PCでもピンが正確な位置に来るよう、SVG描画領域を考慮した座標補正
+    const p=pinPct(zone.cx, zone.cy, W, H);
+    pin.style.cssText=`left:${p.l}%;top:${p.t}%;`;
+    pin.dataset.dmgId=d.id;
+    const newBadge=isNew?`<div class="ipin-new">NEW</div>`:'';
+    pin.innerHTML=`${newBadge}<div class="ipin-r" style="border-color:${c}80;${isNew?'box-shadow:0 0 10px '+c+'50;':''}"><div class="ipin-c" style="background:${c};"></div></div><div class="ipin-lbl" style="background:${isNew?'#ff3333':'#1a2840'}ee;color:#fff;">${d.location}</div>`;
+    if(clickable) pin.addEventListener('click',(e)=>{ e.stopPropagation(); openDmgEdit(d.id); });
+    view.appendChild(pin);
+
+    const el=view.querySelector('#'+zone.id);
+    if(el){
+      const hFill={major:'#ffcccc',moderate:'#ffe0b8',minor:'#fff3cc',scratch:'#ffcccc',dent:'#ffe0b8',chip:'#fff0b0',crack:'#cce0ff',stone_chip:'#bbebff'};
+      const hStroke={major:'#dd2222',moderate:'#cc6600',minor:'#cc9900',scratch:'#dd2222',dent:'#cc6600',chip:'#cc8800',crack:'#2255cc',stone_chip:'#0088cc'};
+      if(isNew){
+        el.style.fill='#ffdddd'; el.setAttribute('stroke','#ee2222'); el.setAttribute('stroke-width','2.5');
+      } else {
+        el.style.fill=hFill[d.severity]||hFill[d.type]||'#ffeecc';
+        el.setAttribute('stroke',hStroke[d.severity]||hStroke[d.type]||'#cc8800');
+        el.setAttribute('stroke-width','2');
+      }
+    }
+  });
+
+  // S0のみ：ゾーンタップで傷追加
+  if(clickable){
+    view.querySelectorAll('[id^="iz-"]').forEach(el=>{
+      el.style.cursor='pointer';
+      const zId=el.id;
+      el.addEventListener('click',(e)=>{ e.stopPropagation(); tapZone(zId); });
+    });
+    // タイヤ透明クリック領域（PCクリック対応）
+    view.querySelectorAll('[data-tire]').forEach(el=>{
+      el.style.cursor='pointer';
+      const tId=el.getAttribute('data-tire');
+      el.addEventListener('click',(e)=>{ e.stopPropagation(); tapZone(tId); });
+    });
+    // 「タップで追加」ヒントラベル
+    const hint=document.createElement('div');
+    hint.style.cssText='position:absolute;bottom:6px;right:8px;font-size:9px;color:#4488cc88;pointer-events:none;font-weight:600;';
+    hint.textContent='ゾームをタップ → 傷追加 ／ ピンをタップ → 編集';
+    view.appendChild(hint);
+  }
+
+  const legend=document.getElementById(legendId);
+  if(legend){
+    if(!damages||damages.length===0){
+      legend.innerHTML='<div class="insp-leg"><div class="insp-leg-dot" style="background:#00cc66;"></div>傷なし（クリーン）</div>';
+    } else {
+      legend.innerHTML=damages.map(d=>{
+        const isNew=newIds&&newIds.has(d.id);
+        const c=isNew?'#ff3333':dmgColor(d);
+        return `<div class="insp-leg"><div class="insp-leg-dot" style="background:${c};"></div>${d.location}${isNew?'<span style="font-size:7px;color:#ff3333;font-weight:700;margin-left:3px;">NEW</span>':''}</div>`;
+      }).join('');
+    }
+  }
+}
+
+// S0: ゾーンクリック不可・ピンタップで写真表示
+function renderInspectionMap(damages){
+  renderMapInto('s0CarView','s0InspLegend',damages,null,false);
+  // ピンをタップ → 写真ポップアップ
+  const view=document.getElementById('s0CarView');
+  if(!view) return;
+  view.querySelectorAll('.ipin[data-dmg-id]').forEach(pin=>{
+    pin.style.cursor='pointer';
+    pin.style.pointerEvents='all';
+    const dmgId=pin.dataset.dmgId;
+    pin.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+      const d=(v?.current_damages||[]).find(x=>x.id===dmgId);
+      if(!d) return;
+      if(d.photo){ openPhotoLBDirect(dmgId); }
+      else{ showToast(`📍 ${d.location} — 写真未登録`); }
+    });
+  });
+}
+
+
+// 現在の車両ダメージを返すヘルパー
+function currentDamages(){
+  return vehiclesCache.find(x=>x.id===currentVehicleId)?.current_damages||[];
+}
+renderInspectionMap([]);
+
+// ===== （旧アングル切替 — 削除済） =====
+// ダミー関数（既存コードとの互換維持）
+function setAngle(){}
+const CAR_SVGS=[];
+const DMG_PINS=[];
+const PIN_LABELS={};
+let currentAngle=0;
+
+// (旧アングル切替コード削除済)
+
+// (旧コード削除済)
+
+// ===== 画面遷移 =====
+function goto(id){
+  // スタッフ未選択はログイン画面へ強制
+  if(id!=='login'&&!currentStaff){id='login';}
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const target=document.getElementById(id);
+  if(target) target.classList.add('active');
+  if(id==='sm'){
+    // キャッシュがあれば即描画してから背景更新（フリーズ・ボタン消え防止）
+    if(vehiclesCache.length>0) renderVehicleList(vehiclesCache, currentStore);
+    loadVehicles();
+    updatePresence('sm',null);
+  }
+  if(id==='sc') loadChain(currentVehicleId);
+  if(id==='sc0') renderSc0();
+  if(id==='sr0') renderSr0();
+  if(id==='si') openSi();
+  if(id==='srp') renderSrp();
+  if(id==='src') renderSrc();
+  if(id==='s0'){ updatePresence('s0',currentVehicleId); refreshS0EditingWarn(); }
+  if(id==='login'){ updatePresence('login',null); }
+  if(id==='login'){
+    currentStaff=null;
+    localStorage.removeItem('bdc_staff');
+    initLogin();
+  }
+}
+
+// ===== チェーン履歴ロード =====
+async function loadChain(vehicleId){
+  if(!vehicleId) return;
+  const tl=document.getElementById('scTimeline');
+  const title=document.getElementById('scTitle');
+  // ヘッダータイトル更新
+  const v=vehiclesCache.find(x=>x.id===vehicleId);
+  if(title) title.textContent=`${v?.vehicles?.name||vehicleId} チェーン履歴`;
+  if(tl) tl.innerHTML='<div style="text-align:center;padding:40px 0;color:#88aacc;font-size:13px;">読み込み中...</div>';
+  const {data:events,error}=await sb.from('check_events')
+    .select('id,event_type,resv_no,customer_name,staff,damages_snapshot,new_damages,created_at,notes')
+    .eq('vehicle_id',vehicleId)
+    .order('created_at',{ascending:false})
+    .limit(50);
+  if(error||!events||events.length===0){
+    if(tl) tl.innerHTML=`
+      <div style="text-align:center;padding:50px 20px;color:#88aacc;">
+        <div style="font-size:32px;margin-bottom:12px;">⚡</div>
+        <div style="font-size:14px;font-weight:700;color:#ffbb55;margin-bottom:6px;">チェーン未作成</div>
+        <div style="font-size:11px;">初期登録を完了するとここに履歴が積まれていきます</div>
+      </div>`;
+    return;
+  }
+  const evTypeLabel={checkout:'出庫',return:'返却',repair:'修理完了',initial:'初期登録'};
+  const evIcon={checkout:'🚗',return:'📹',repair:'🔧',initial:'⚡'};
+  const evColor={checkout:'#2266cc',return:'#cc6600',repair:'#228833',initial:'#996600'};
+  const tLMap={scratch:'擦り傷',dent:'凹み',chip:'塗装欠け',stone_chip:'飛び石',crack:'ひび割れ',break:'破損',stain:'汚れ',burn:'焦げ痕',rust:'錆び',missing:'部品欠損',tire_flat:'パンク',tire_wear:'タイヤ摩耗',other:'その他'};
+  const sLMap={minor:'軽微',moderate:'中程度',major:'重大'};
+
+  // 傷カードHTML生成（写真・詳細・日付）
+  function dmgCard(d,isNew){
+    const c=dmgColor(d);
+    const tL=tLMap[d.type]||d.type||'傷';
+    const sL=sLMap[d.severity]||'';
+    const border=isNew?`border:1.5px solid #ff4444;`:`border:1px solid #e0eaf4;`;
+    const badge=isNew?`<span style="font-size:8px;font-weight:800;color:#ff3333;border:1px solid #ff333340;padding:1px 6px;border-radius:5px;margin-left:6px;">NEW</span>`:'';
+    return `<div style="background:#fff;${border}border-radius:10px;overflow:hidden;margin-bottom:7px;">
+      ${d.photo?`<div style="width:100%;height:110px;overflow:hidden;cursor:pointer;position:relative;" onclick="openPhotoLBDirect('${d.id}')">
+        <img src="${d.photo}" style="width:100%;height:100%;object-fit:cover;">
+        <div style="position:absolute;bottom:5px;right:7px;background:#000000aa;border-radius:5px;padding:2px 7px;font-size:9px;color:#fff;font-weight:700;">📷 タップで拡大</div>
+      </div>`:''}
+      <div style="padding:8px 12px;display:flex;gap:8px;align-items:flex-start;">
+        <div style="width:8px;height:8px;border-radius:50%;background:${c};flex-shrink:0;margin-top:4px;"></div>
+        <div style="flex:1;">
+          <div style="font-size:12px;font-weight:700;color:#1a2840;">${d.location}${badge}</div>
+          <div style="font-size:10px;color:#8899bb;margin-top:2px;">${tL}${sL?' ／ '+sL:''}${d.size?' ／ '+d.size:''}${d.desc&&d.desc!=='手動追加'?' ／ '+d.desc:''}</div>
+          ${d.addedAt?`<div style="font-size:9px;color:#aabbcc;margin-top:2px;">記録: ${d.addedAt}</div>`:''}
+        </div>
+      </div>
+    </div>`;
+  }
+
+  let html='';
+  events.forEach((ev,i)=>{
+    const isFirst=(i===0);
+    const icon=evIcon[ev.event_type]||'📋';
+    const label=evTypeLabel[ev.event_type]||ev.event_type;
+    const color=evColor[ev.event_type]||'#666';
+    const date=fmtDate(ev.created_at);
+    const newDmgs=ev.new_damages||[];
+    const snapDmgs=ev.damages_snapshot||[];
+
+    // サブ情報（予約バナー + 担当）
+    let resvBanner='';
+    if(ev.customer_name||ev.resv_no){
+      resvBanner=`<div style="background:#0d1f3c;border:1px solid #1e3a5f;border-radius:8px;padding:5px 10px;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+        <span style="font-size:12px;">📋</span>
+        <span style="font-size:10px;font-weight:700;color:#ddeeff;">${ev.customer_name||'—'} 様</span>
+        <span style="font-size:9px;color:#6699bb;">／</span>
+        <span style="font-size:9px;color:#88bbdd;font-family:monospace;">${ev.resv_no||'—'}</span>
+      </div>`;
+    }
+    let sub=`<span style="font-size:9px;color:#99aabb;">担当: ${ev.staff}</span>`;
+
+    // 傷リストHTML
+    let dmgsHtml='';
+    if(ev.event_type==='initial'&&snapDmgs.length>0){
+      dmgsHtml=`<div style="font-size:10px;font-weight:700;color:#886600;margin:10px 0 6px;">📋 登録した傷 — ${snapDmgs.length}件</div>`;
+      dmgsHtml+=snapDmgs.map(d=>dmgCard(d,false)).join('');
+    }
+    if(ev.event_type==='return'&&newDmgs.length>0){
+      dmgsHtml=`<div style="font-size:10px;font-weight:700;color:#cc4400;margin:10px 0 6px;">⚠ 返却時に発見した新しい傷 — ${newDmgs.length}件</div>`;
+      dmgsHtml+=newDmgs.map(d=>dmgCard(d,true)).join('');
+    }
+    if(ev.event_type==='checkout'){
+      dmgsHtml=`<div style="font-size:10px;color:#5577aa;margin-top:8px;padding:7px 10px;background:#eef4fc;border-radius:8px;">出庫時の傷 ${snapDmgs.length}件 をお客様に説明・確認済み</div>`;
+    }
+
+    html+=`
+    <div style="display:flex;gap:12px;margin-bottom:20px;">
+      <div style="display:flex;flex-direction:column;align-items:center;flex-shrink:0;">
+        <div style="width:36px;height:36px;border-radius:50%;background:${color}18;border:2px solid ${color}60;display:flex;align-items:center;justify-content:center;font-size:16px;">${icon}</div>
+        ${i<events.length-1?`<div style="width:2px;flex:1;background:linear-gradient(to bottom,${color}40,transparent);margin-top:4px;"></div>`:''}
+      </div>
+      <div style="flex:1;min-width:0;padding-bottom:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:3px;">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-size:12px;font-weight:800;color:${color};">${label}</span>
+            ${isFirst?`<span style="font-size:8px;font-weight:700;color:#00aa55;border:1px solid #00aa5540;padding:1px 6px;border-radius:5px;">最新</span>`:''}
+          </div>
+          <span style="font-size:10px;color:#8899bb;flex-shrink:0;">${date}</span>
+        </div>
+        ${resvBanner}
+        <div style="margin-bottom:4px;">${sub}</div>
+        ${dmgsHtml}
+      </div>
+    </div>`;
+  });
+  if(tl) tl.innerHTML=html||'<div style="text-align:center;padding:40px 0;color:#88aacc;">履歴なし</div>';
+}
+
+// ===== テストリセット =====
+function openTestReset(){
+  const storeLabel='高松店';
+  const overlay=document.createElement('div');
+  overlay.id='testResetOverlay';
+  overlay.style.cssText='position:fixed;inset:0;background:#00000088;z-index:600;display:flex;align-items:flex-end;justify-content:center;max-width:520px;margin:0 auto;';
+  overlay.innerHTML=`
+    <div style="background:#fff;border-radius:22px 22px 0 0;padding:24px 20px max(env(safe-area-inset-bottom),28px);width:100%;">
+      <div style="width:40px;height:4px;background:#d0d8e8;border-radius:2px;margin:0 auto 18px;"></div>
+      <div style="font-size:22px;text-align:center;margin-bottom:8px;">🗑️</div>
+      <div style="font-size:16px;font-weight:800;color:#cc2222;text-align:center;margin-bottom:6px;">テストデータをリセット</div>
+      <div style="font-size:12px;color:#6688aa;text-align:center;line-height:1.7;margin-bottom:20px;">
+        <b>${storeLabel}</b> の全車両を初期状態に戻します<br>
+        ・ステータス → <b>空車</b><br>
+        ・傷データ → <b>全削除</b><br>
+        ・チェーン起点 → <b>リセット</b><br>
+        ・チェック履歴（check_events）→ <b>全削除</b>
+      </div>
+      <button onclick="execTestReset()" style="width:100%;padding:16px;border-radius:14px;border:none;background:linear-gradient(135deg,#cc2222,#991111);color:#fff;font-size:15px;font-weight:800;cursor:pointer;margin-bottom:10px;touch-action:manipulation;">⚠️ 全てリセットする</button>
+      <button onclick="document.getElementById('testResetOverlay').remove()" style="width:100%;padding:14px;border-radius:14px;border:1.5px solid #d0dce8;background:#fff;color:#8899bb;font-size:14px;font-weight:600;cursor:pointer;touch-action:manipulation;">キャンセル</button>
+    </div>`;
+  overlay.addEventListener('click',e=>{if(e.target===overlay) overlay.remove();});
+  document.body.appendChild(overlay);
+}
+
+async function execTestReset(){
+  const overlay=document.getElementById('testResetOverlay');
+  if(overlay) overlay.remove();
+
+  showToast('⏳ リセット中...');
+  const store=currentStore;
+  const storeName='takamatsu';
+
+  try{
+    // 1. vehicle_twins を全件リセット（当該ストアのみ）
+    const{error:e1}=await sb.from('vehicle_twins').update({
+      status:'ready',
+      current_damages:[],
+      current_resv_no:null,
+      current_customer:null,
+      last_event_id:null,
+      last_check_at:null,
+      last_check_staff:null,
+      odometer:0,
+      rental_count:0,
+    }).eq('store',storeName);
+    if(e1) throw e1;
+
+    // 2. check_events を全件削除（当該ストアの vehicle_twins に紐づくもの）
+    // まず vehicle_ids を取得してから削除
+    const{data:twins}=await sb.from('vehicle_twins').select('id').eq('store',storeName);
+    if(twins&&twins.length>0){
+      const ids=twins.map(t=>t.id);
+      const{error:e2}=await sb.from('check_events').delete().in('vehicle_id',ids);
+      if(e2) throw e2;
+    }
+
+    // 3. キャッシュをリセット
+    vehiclesCache=vehiclesCache.map(v=>({
+      ...v,
+      status:'ready',
+      current_damages:[],
+      current_resv_no:null,
+      current_customer:null,
+      last_event_id:null,
+      last_check_at:null,
+      last_check_staff:null,
+      odometer:0,
+      rental_count:0,
+    }));
+
+    // 4. 一覧を再描画
+    await loadVehicles();
+    showToast('✅ リセット完了 — 全車両を初期状態に戻しました');
+  }catch(e){
+    console.error('testReset error:',e);
+    showToast('❌ リセットエラー: '+e.message.slice(0,50));
+  }
+}
+
+// ===== ステータス手動変更 =====
+function openStatusChange(){
+  const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+  if(!v) return;
+  const STATUS_OPTS=[
+    {val:'ready',      label:'🟢 空車（準備完了）'},
+    {val:'out',        label:'🟡 貸出中'},
+    {val:'returning',  label:'🔴 返却待ち'},
+    {val:'returned',   label:'✅ 返却済み（清掃待ち）'},
+    {val:'maintenance',label:'🔧 整備中'},
+  ];
+  const btns=STATUS_OPTS.map(o=>
+    `<button onclick="setStatusManual('${o.val}')" style="width:100%;padding:14px;border-radius:12px;border:1.5px solid #d0dce8;background:${v.status===o.val?'#1a3a6a':'#f4f8fc'};color:${v.status===o.val?'#88ccff':'#1a2840'};font-size:14px;font-weight:700;cursor:pointer;margin-bottom:8px;touch-action:manipulation;">${o.label}${v.status===o.val?' ← 現在':''}</button>`
+  ).join('');
+  const overlay=document.createElement('div');
+  overlay.id='statusChangeOverlay';
+  overlay.style.cssText='position:fixed;inset:0;background:#00000066;z-index:500;display:flex;align-items:flex-end;justify-content:center;max-width:520px;margin:0 auto;';
+  overlay.innerHTML=`
+    <div style="background:#fff;border-radius:22px 22px 0 0;padding:20px 20px max(env(safe-area-inset-bottom),24px);width:100%;max-height:80vh;overflow-y:auto;">
+      <div style="width:40px;height:4px;background:#d0d8e8;border-radius:2px;margin:0 auto 16px;"></div>
+      <div style="font-size:15px;font-weight:800;color:#1a2840;margin-bottom:4px;text-align:center;">ステータスを変更</div>
+      <div style="font-size:11px;color:#8899bb;text-align:center;margin-bottom:16px;">${v.vehicles?.plate_no||currentVehicleId} / ${v.vehicles?.name||''}</div>
+      ${btns}
+      <button onclick="document.getElementById('statusChangeOverlay').remove()" style="width:100%;padding:13px;border-radius:12px;border:1.5px solid #d0dce8;background:#fff;color:#8899bb;font-size:13px;font-weight:600;cursor:pointer;touch-action:manipulation;">キャンセル</button>
+    </div>`;
+  overlay.addEventListener('click',e=>{if(e.target===overlay) overlay.remove();});
+  document.body.appendChild(overlay);
+}
+async function setStatusManual(newStatus){
+  const overlay=document.getElementById('statusChangeOverlay');
+  if(overlay) overlay.remove();
+  try{
+    await sb.from('vehicle_twins').upsert({
+      id:currentVehicleId,
+      store:currentStore,
+      status:newStatus,
+      updated_at:new Date().toISOString()
+    },{onConflict:'id'});
+    const idx=vehiclesCache.findIndex(v=>v.id===currentVehicleId);
+    if(idx>=0){
+      vehiclesCache[idx]={...vehiclesCache[idx],status:newStatus};
+      renderS0(vehiclesCache[idx]);
+    }
+    showToast(`✓ ステータスを「${STATUS_DEF[newStatus]?.label||newStatus}」に変更しました`);
+  }catch(e){
+    showToast('❌ 変更エラー: '+e.message.slice(0,40));
+  }
+}
+
+// ===== 初期登録: 専用画面(#si)を開く =====
+function startInitialRegistration(){
+  siEditMode=false;
+  siReturnScreen='sm';
+  goto('si');
+}
+
+// 編集モードでSI画面を開く（登録済み車両の傷追加・削除）
+function openDamageEdit(returnTo){
+  const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+  if(!v) return;
+  siEditMode=true;
+  siReturnScreen=returnTo||'s0';
+  siLocalDamages=(v.current_damages||[]).map(d=>({...d}));
+  goto('si');
+}
+
+function startReturnCheck(){
+  // SR0へ直接遷移（旧AIカメラフロー廃止）
+  sr0DamagesSnapshot=(vehiclesCache.find(x=>x.id===currentVehicleId)?.current_damages||[]).map(d=>({...d}));
+  Object.keys(SR0_STATUS).forEach(k=>delete SR0_STATUS[k]);
+  goto('sr0');
+}
+
+
+// ===== ゾーンタップ（傷追加 or 編集） =====
+function tapZone(zoneId){
+  const dmgsHere=currentDamages().filter(d=>{
+    let z=ZONE_MAP[d.location];
+    if(!z){ const keys=Object.keys(ZONE_MAP).sort((a,b)=>b.length-a.length); for(const k of keys){ if(d.location.includes(k)){z=ZONE_MAP[k];break;} } }
+    return z&&z.id===zoneId;
+  });
+  if(dmgsHere.length>0){
+    openDmgEdit(dmgsHere[0].id);
+  } else {
+    const name=ZONE_ID_TO_NAME[zoneId];
+    if(name) openAddDmgSheet(name);
+  }
+}
+
+// ===== 既存傷ピンタップ → 編集シート =====
+let currentEditDmgId=null;
+function openDmgEdit(dmgId){
+  const d=currentDamages().find(x=>x.id===dmgId);
+  if(!d) return;
+  currentEditDmgId=dmgId;
+  const typeNames={scratch:'擦り傷',dent:'凹み',chip:'塗装欠け',stone_chip:'飛び石',crack:'ひび割れ',other:'その他'};
+  const sevNames={minor:'軽微',moderate:'中程度',major:'重大'};
+  const sevColors={minor:'#cc9900',moderate:'#cc5500',major:'#cc1111'};
+  const sevBgs={minor:'#fffbe8',moderate:'#fff3e0',major:'#ffe8e8'};
+  const sevBorders={minor:'#ffcc00',moderate:'#ff8800',major:'#ff3333'};
+  document.getElementById('dmgEditLoc').textContent=d.location;
+  const meta=[typeNames[d.type]||d.type, d.desc, d.addedAt?d.addedAt+'記録':''].filter(Boolean).join(' ／ ');
+  document.getElementById('dmgEditMeta').textContent=meta;
+  const chip=document.getElementById('dmgEditSevChip');
+  const sev=d.severity||d.type;
+  chip.textContent=sevNames[sev]||sev;
+  chip.style.color=sevColors[sev]||'#8899bb';
+  chip.style.background=sevBgs[sev]||'#f0f0f0';
+  chip.style.borderColor=sevBorders[sev]||'#d0d0d0';
+  document.getElementById('dmgEditOverlay').classList.add('show');
+}
+function closeDmgEdit(e){
+  if(e&&e.target!==document.getElementById('dmgEditOverlay'))return;
+  document.getElementById('dmgEditOverlay').classList.remove('show');
+  currentEditDmgId=null;
+}
+async function markRepaired(){
+  if(!currentEditDmgId) return;
+  const d=currentDamages().find(x=>x.id===currentEditDmgId);
+  const loc=d?d.location:'';
+  const dmgId=currentEditDmgId;
+  try{
+    const updated=await safeWriteDamages(currentVehicleId,fresh=>fresh.filter(x=>x.id!==dmgId));
+    const{error}=await sb.from('vehicle_twins').update({current_damages:updated,last_check_at:new Date().toISOString(),last_check_staff:currentStaff}).eq('id',currentVehicleId);
+    if(error) throw error;
+    renderInspectionMap(updated);
+    document.getElementById('dmgEditOverlay').classList.remove('show');
+    currentEditDmgId=null;
+    showToast('🔧 '+loc+'を修復済みにしました');
+  }catch(e){
+    showToast('❌ 保存エラー: '+e.message.slice(0,40));
+  }
+}
+
+function typeLabel(type){
+  return {scratch:'擦り傷',dent:'凹み',chip:'塗装欠け',crack:'ひび割れ',other:'その他'}[type]||type||'—';
+}
+
+// ===== SR0: 返却チェック =====
+const SR0_STATUS={};        // dmgId → 'ok'|'worse'|'repaired'
+let sr0DamagesSnapshot=[];  // 返却チェック開始時点のダメージ一覧
+let sr0OpenId=null;
+
+async function renderSr0(){
+  // ③バグ修正: ボタンを即時リセット（前回の「保存中...」をクリア）
+  const returnBtn0=document.getElementById('sr0ReturnBtn');
+  if(returnBtn0){
+    returnBtn0.textContent='⏳ 読み込み中...';
+    returnBtn0.style.pointerEvents='none';
+    returnBtn0.style.opacity='0.6';
+  }
+
+  // ② 最新データをSupabaseから取得（PC/スマホ同期）
+  try{
+    const{data:twin}=await sb.from('vehicle_twins').select('*').eq('id',currentVehicleId).single();
+    if(twin){
+      const idx=vehiclesCache.findIndex(v=>v.id===currentVehicleId);
+      if(idx>=0) vehiclesCache[idx]={...vehiclesCache[idx],...twin};
+      // SR0スナップショットも最新で更新
+      sr0DamagesSnapshot=(twin.current_damages||[]).map(d=>({...d}));
+    }
+  }catch(e){ console.warn('renderSr0 refresh:',e); }
+
+  const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+  if(!v) return;
+  const damages=v.current_damages||[];
+  const vName=v.vehicles?.name||currentVehicleId;
+
+  // ③ 予約情報（fleet→reservationsから取得、フォールバックでvehicle_twins）
+  let sr0ResvObj=null;
+  const resvFromDb=await fetchReservationForVehicle(currentVehicleId,'return');
+  if(resvFromDb){
+    sr0ResvObj=resvFromDb;
+  } else {
+    const customer=v.current_customer||'';
+    const resvNo=v.current_resv_no||'';
+    if(resvNo||customer){
+      sr0ResvObj={id:resvNo, name:customer, lend_date:'', lend_time:'', return_date:'', return_time:''};
+    }
+  }
+  const customer=sr0ResvObj?.name||'';
+  const resvNo=sr0ResvObj?.id||'';
+
+  document.getElementById('sr0Title').textContent=vName;
+  const sub=document.getElementById('sr0Sub');
+  if(sub) sub.textContent=(customer?customer+' 様':'')+(resvNo?' ／ 予約: '+resvNo:'');
+
+  // 展開図メイン（ピンタップで写真ポップアップ）
+  renderCheckMap('sr0MapView', damages);
+
+  // 予約バナー表示
+  const banner=document.getElementById('sr0ResvBanner');
+  if(banner) banner.innerHTML=resvBannerHtml(sr0ResvObj, 'return');
+
+  // ② ステータスチェック — 既に空車(返却済み)なら承認ボタンを無効化
+  const returnBtn=document.getElementById('sr0ReturnBtn');
+  if(returnBtn){
+    if(v.status==='ready'||v.status==='returned'){
+      returnBtn.textContent='🟢 すでに空車です — 処理済み';
+      returnBtn.style.background='linear-gradient(135deg,#555,#333)';
+      returnBtn.style.pointerEvents='none';
+      returnBtn.style.opacity='0.6';
+    } else {
+      // 'out' または 'returning' → タップ貫通防止: 350ms後に有効化
+      returnBtn.textContent='⏳ 読み込み中...';
+      returnBtn.style.background='linear-gradient(135deg,#00aa55,#007733)';
+      returnBtn.style.pointerEvents='none';
+      returnBtn.style.opacity='0.5';
+      setTimeout(()=>{
+        const b=document.getElementById('sr0ReturnBtn');
+        if(b&&b.textContent.includes('読み込み中')){
+          b.textContent='✅ 承認します — 返却完了';
+          b.style.pointerEvents='all';
+          b.style.opacity='1';
+        }
+      },350);
+    }
+  }
+
+  // 傷リスト＋新傷追加ボタン（返却モード）
+  renderChkDmgList('sr0DmgList', damages, true);
+}
+
+function toggleSr0Acc(dmgId){
+  const acc=document.getElementById('sr0acc_'+dmgId);
+  const b=document.getElementById('sr0body_'+dmgId);
+  if(!acc||!b) return;
+  const isOpen=acc.classList.contains('open');
+  if(sr0OpenId&&sr0OpenId!==dmgId){
+    const prev=document.getElementById('sr0acc_'+sr0OpenId);
+    const prevB=document.getElementById('sr0body_'+sr0OpenId);
+    if(prev) prev.classList.remove('open');
+    if(prevB) prevB.style.maxHeight='';
+  }
+  if(isOpen){acc.classList.remove('open');b.style.maxHeight='';sr0OpenId=null;}
+  else{acc.classList.add('open');b.style.maxHeight=b.scrollHeight+'px';sr0OpenId=dmgId;}
+}
+
+function sr0SetStatus(dmgId,status){
+  SR0_STATUS[dmgId]=status;
+  // バッジ更新
+  const badge=document.getElementById('sr0badge_'+dmgId);
+  if(badge){
+    badge.textContent=status==='ok'?'✓ 変化なし':status==='worse'?'⬆ 悪化':'🔧 修復済み';
+    badge.style.cssText='font-size:9px;font-weight:700;padding:3px 9px;border-radius:8px;white-space:nowrap;'+(
+      status==='ok'?'background:#edfaf4;border:1px solid #00bb55;color:#007733;':
+      status==='worse'?'background:#fff0ee;border:1px solid #ff4444;color:#cc2222;':
+      'background:#eef4fc;border:1px solid #4488cc;color:#2266cc;');
+  }
+  // ステータスボタンの選択状態更新
+  const b=document.getElementById('sr0body_'+dmgId);
+  if(b){
+    b.querySelectorAll('.sr0-status-btn').forEach(btn=>{
+      btn.classList.remove('sel-ok','sel-worse','sel-repaired');
+    });
+    const btns=b.querySelectorAll('.sr0-status-btn');
+    if(btns[0]&&status==='ok') btns[0].classList.add('sel-ok');
+    if(btns[1]&&status==='worse') btns[1].classList.add('sel-worse');
+    if(btns[2]&&status==='repaired') btns[2].classList.add('sel-repaired');
+  }
+  // 確認済みカウント更新
+  const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+  const total=(v?.current_damages||[]).length;
+  const confirmed=Object.keys(SR0_STATUS).filter(k=>(v?.current_damages||[]).some(d=>d.id===k)).length;
+  document.getElementById('sr0ConfirmCount').textContent=confirmed;
+  const returnBtn=document.getElementById('sr0ReturnBtn');
+  if(returnBtn){
+    if(confirmed>=total){returnBtn.style.opacity='1';returnBtn.style.pointerEvents='all';}
+    else{returnBtn.style.opacity='.4';returnBtn.style.pointerEvents='none';}
+  }
+  // 確認したら自動で閉じる
+  const acc=document.getElementById('sr0acc_'+dmgId);
+  const body2=document.getElementById('sr0body_'+dmgId);
+  if(acc){acc.classList.remove('open');}
+  if(body2) body2.style.maxHeight='';
+  if(sr0OpenId===dmgId) sr0OpenId=null;
+}
+
+async function sr0SaveReturn(){
+  const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+  if(!v) return;
+  const damages=v.current_damages||[];
+  const customer=v.current_customer||'—';
+  const resvNo=v.current_resv_no||'—';
+  const prevEventId=v.last_event_id||null;
+
+  // 新規追加された傷 = スナップショット後に追加されたもの
+  const snapIds=new Set(sr0DamagesSnapshot.map(d=>d.id));
+  const currentDamages=vehiclesCache.find(x=>x.id===currentVehicleId)?.current_damages||[];
+  const newDmgs=currentDamages.filter(d=>!snapIds.has(d.id));
+
+  // 最終的な傷リスト（修復済みを除外 + 新規追加を追加）
+  const finalDamages=[
+    ...sr0DamagesSnapshot.filter(d=>SR0_STATUS[d.id]!=='repaired'),
+    ...newDmgs
+  ];
+  // 新規・悪化リスト（check_eventsに記録）
+  const newDamagesRecord=[
+    ...sr0DamagesSnapshot.filter(d=>SR0_STATUS[d.id]==='worse'),
+    ...newDmgs
+  ];
+  const repairedCount=sr0DamagesSnapshot.filter(d=>SR0_STATUS[d.id]==='repaired').length;
+
+  const btn=document.getElementById('sr0ReturnBtn');
+  if(btn){btn.textContent='保存中...';btn.style.pointerEvents='none';}
+
+  try{
+    const now=new Date().toISOString();
+    const{data:ev,error:evErr}=await sb.from('check_events').insert({
+      vehicle_id:currentVehicleId,
+      event_type:'return',
+      staff:currentStaff,
+      customer_name:customer,
+      resv_no:resvNo,
+      damages_snapshot:finalDamages,
+      new_damages:newDamagesRecord,
+      staff_confirmed:true,
+      confirmed_at:now,
+      prev_event_id:prevEventId,
+      notes:`返却チェック ／ 新規傷${newDmgs.length}件 ／ 悪化${newDamagesRecord.length-newDmgs.length}件 ／ 修復済${repairedCount}件`
+    }).select().single();
+    if(evErr) throw evErr;
+
+    await sb.from('vehicle_twins').update({
+      status:'ready',
+      current_damages:finalDamages,
+      last_event_id:ev.id,
+      last_check_at:now,
+      last_check_staff:currentStaff,
+      current_resv_no:null,
+      current_customer:null,
+    }).eq('id',currentVehicleId);
+
+    const idx=vehiclesCache.findIndex(x=>x.id===currentVehicleId);
+    if(idx>=0){
+      vehiclesCache[idx]={...vehiclesCache[idx],status:'ready',current_damages:finalDamages,
+        last_event_id:ev.id,last_check_at:now,last_check_staff:currentStaff,
+        current_resv_no:null,current_customer:null};
+    }
+    goto('sm');
+    setTimeout(()=>showToast(`✅ 返却完了・空車 ／ ${customer} 様 ／ 新規傷${newDmgs.length}件`),200);
+  }catch(e){
+    console.error('sr0SaveReturn:',e);
+    showToast('❌ 保存エラー: '+e.message.slice(0,40));
+    if(btn){btn.textContent='✓ 全件確認済み — 返却完了';btn.style.pointerEvents='all';}
+  }
+}
+
+// ===== 写真ユーティリティ =====
+let editPhoto=null;
+function resetEditPhoto(){
+  editPhoto=null;
+  const p=document.getElementById('editPhotoPreview');
+  const img=document.getElementById('editPhotoImg');
+  if(p) p.style.display='none';
+  if(img) img.src='';
+}
+function clearEditPhoto(){ resetEditPhoto(); showToast('写真を削除しました'); }
+function triggerCamera(){ document.getElementById('cameraInput').click(); }
+function triggerLibrary(){ document.getElementById('libraryInput').click(); }
+async function handlePhotoSelect(input){
+  const file=input.files[0]; if(!file) return; input.value='';
+  try{
+    const b64=await compressPhoto(file,800,0.72);
+    editPhoto=b64;
+    const preview=document.getElementById('editPhotoPreview');
+    const img=document.getElementById('editPhotoImg');
+    if(img) img.src=b64;
+    if(preview) preview.style.display='block';
+    showToast('✓ 写真を追加しました');
+  }catch(e){ showToast('⚠ 写真の読み込みに失敗しました'); }
+}
+function compressPhoto(file,maxPx,quality){
+  return new Promise((resolve,reject)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const scale=Math.min(1,maxPx/Math.max(img.width,img.height));
+        const w=Math.round(img.width*scale), h=Math.round(img.height*scale);
+        const canvas=document.getElementById('compressCanvas');
+        canvas.width=w; canvas.height=h;
+        canvas.getContext('2d').drawImage(img,0,0,w,h);
+        resolve(canvas.toDataURL('image/jpeg',quality));
+      };
+      img.onerror=reject; img.src=e.target.result;
+    };
+    reader.onerror=reject; reader.readAsDataURL(file);
+  });
+}
+
+// ===== 空きゾームタップ → 傷追加シート =====
+function openAddDmgSheet(zoneName){
+  editZone=zoneName;editType=null;editSev=null;editSize=null;
+  resetEditPhoto();
+  document.getElementById('editTitle').textContent=zoneName+' — 傷を追加';
+  document.getElementById('editSub').textContent='傷の種類と程度を選んでください';
+  document.getElementById('editZoneSection').style.display='none';
+  document.getElementById('editStep2').style.display='block';
+  document.getElementById('editDescInput').value='';
+  document.querySelectorAll('.edit-type-btn').forEach(b=>b.classList.remove('sel'));
+  document.querySelectorAll('.edit-sev-btn').forEach(b=>b.classList.remove('sel'));
+  updateEditBtns();
+  document.getElementById('editOverlay').classList.add('show');
+}
+
+// ===== 手動編集パネル（全ゾーン選択モード） =====
+const ZONE_NAMES=Object.keys(ZONE_MAP);
+let editZone=null,editType=null,editSev=null,editSize=null;
+
+function openEditPanel(){
+  editZone=null;editType=null;editSev=null;editSize=null;
+  const zc=document.getElementById('editZones');
+  zc.innerHTML=ZONE_NAMES.map(z=>`<button class="edit-zone-btn" onclick="selEditZone(this,'${z}')">${z}</button>`).join('');
+  document.getElementById('editStep2').style.display='none';
+  document.getElementById('editDescInput').value='';
+  document.querySelectorAll('.edit-type-btn').forEach(b=>b.classList.remove('sel'));
+  document.querySelectorAll('.edit-sev-btn').forEach(b=>b.classList.remove('sel'));
+  updateEditBtns();
+  document.getElementById('editOverlay').classList.add('show');
+}
+function closeEditPanel(e){
+  if(e&&e.target!==document.getElementById('editOverlay'))return;
+  document.getElementById('editOverlay').classList.remove('show');
+}
+function selEditZone(btn,z){
+  editZone=z;
+  document.querySelectorAll('.edit-zone-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  document.getElementById('editStep2').style.display='block';
+  updateEditBtns();
+}
+function selEditType(btn){
+  editType=btn.dataset.val;
+  document.querySelectorAll('.edit-type-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  updateEditBtns();
+}
+function selEditSev(btn){
+  editSev=btn.dataset.val;
+  document.querySelectorAll('.edit-sev-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  updateEditBtns();
+}
+function selEditSize(btn){
+  editSize=btn.dataset.val;
+  document.querySelectorAll('#editSizeRow .edit-sev-btn').forEach(b=>b.classList.remove('sel'));
+  btn.classList.add('sel');
+  updateEditBtns();
+}
+function updateEditBtns(){
+  const ok=editZone&&editType&&editSev;
+  const repair=!!editZone;
+  document.getElementById('editOkBtn').style.opacity=ok?'1':'.4';
+  document.getElementById('editOkBtn').style.pointerEvents=ok?'all':'none';
+  document.getElementById('editRepairBtn').style.opacity=repair?'1':'.4';
+  document.getElementById('editRepairBtn').style.pointerEvents=repair?'all':'none';
+  // 写真ボタン：常時有効（種類・程度の選択は不要）
+  const photoBtns=document.getElementById('editPhotoBtns');
+  const photoHint=document.getElementById('editPhotoHint');
+  if(photoBtns){photoBtns.style.opacity='1';photoBtns.style.pointerEvents='all';}
+  if(photoHint){photoHint.style.display='none';}
+}
+async function submitEdit(){
+  if(!editZone||!editType||!editSev) return;
+  const desc=document.getElementById('editDescInput').value.trim()||'手動追加';
+  const now=new Date();
+  const ts=now.getFullYear()+'/'+(now.getMonth()+1+'').padStart(2,'0')+'/'+(now.getDate()+'').padStart(2,'0')+' '+(now.getHours()+'').padStart(2,'0')+':'+(now.getMinutes()+'').padStart(2,'0');
+  const newDmg={id:'dmg_'+Date.now(),location:editZone,type:editType,severity:editSev,size:editSize||null,desc,addedAt:ts,photo:editPhoto||null,addedBy:currentStaff};
+
+  // ===== SI モード: ローカル追加のみ（Supabase保存は登録完了時） =====
+  if(siMode){
+    siLocalDamages.push(newDmg);
+    document.getElementById('editOverlay').classList.remove('show');
+    resetEditPhoto();
+    siRenderMap();
+    siRenderList();
+    const lu=document.getElementById('siLastUpd');
+    if(lu) lu.textContent='最終更新: '+ts;
+    showToast('✓ '+editZone+'の傷を追加しました');
+    return;
+  }
+
+  // ===== 通常モード: 最新データ取得→追記→保存 =====
+  const btn=document.getElementById('editOkBtn');
+  if(btn){btn.textContent='保存中...';btn.style.pointerEvents='none';}
+  try{
+    const updated=await safeWriteDamages(currentVehicleId,fresh=>[...fresh,newDmg]);
+    const{error}=await sb.from('vehicle_twins').update({current_damages:updated,last_check_at:new Date().toISOString(),last_check_staff:currentStaff}).eq('id',currentVehicleId);
+    if(error) throw error;
+    renderInspectionMap(updated);
+    // SR0表示中ならSR0マップも更新
+    const activeSc=document.querySelector('.screen.active');
+    if(activeSc&&activeSc.id==='sr0') renderMapInto('sr0MapView',null,updated,null,false);
+    document.getElementById('editOverlay').classList.remove('show');
+    resetEditPhoto();
+    showToast('✓ '+editZone+'の傷を保存しました');
+  }catch(e){
+    console.error('submitEdit:',e);
+    showToast('❌ 保存エラー: '+e.message.slice(0,40));
+  }finally{
+    if(btn){btn.textContent='✓ 傷を追加';btn.style.pointerEvents='all';}
+  }
+}
+async function repairZone(){
+  if(!editZone) return;
+  const zone=editZone;
+  const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+  const beforeCnt=(v?.current_damages||[]).length;
+  try{
+    const updated=await safeWriteDamages(currentVehicleId,fresh=>fresh.filter(d=>d.location!==zone));
+    const removed=beforeCnt-updated.length;
+    const{error}=await sb.from('vehicle_twins').update({current_damages:updated,last_check_at:new Date().toISOString(),last_check_staff:currentStaff}).eq('id',currentVehicleId);
+    if(error) throw error;
+    renderInspectionMap(updated);
+    document.getElementById('editOverlay').classList.remove('show');
+    showToast('🔧 '+editZone+'を修復済みに（'+removed+'件削除）');
+  }catch(e){
+    showToast('❌ 保存エラー: '+e.message.slice(0,40));
+  }
+}
+function showToast(msg){
+  const t=document.createElement('div');
+  t.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#1a2840;color:#fff;font-size:12px;font-weight:600;padding:10px 18px;border-radius:12px;z-index:500;white-space:nowrap;box-shadow:0 4px 20px #0003;opacity:0;transition:opacity .3s;max-width:90vw;text-align:center;';
+  t.textContent=msg;document.body.appendChild(t);
+  setTimeout(()=>t.style.opacity='1',10);
+  setTimeout(()=>{t.style.opacity='0';setTimeout(()=>t.remove(),400);},3000);
+}
+
+// ===== SI: 傷登録・編集画面（汎用） =====
+let siLocalDamages=[];
+let siMode=false;
+let siEditMode=false;    // false=初期登録 / true=編集モード
+let siReturnScreen='s0'; // 保存後の戻り先
+
+function openSi(){
+  const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+  if(!v) return;
+  // 編集モードのときはsiLocalDamagesは呼び元で設定済み → リセットしない
+  if(!siEditMode) siLocalDamages=[];
+  siMode=true;
+  const vName=v.vehicles?.name||currentVehicleId;
+  if(siEditMode){
+    setText('siTitle','傷を編集 — '+vName);
+    setText('siSub','ゾーンをタップして追加 ／ ピンをタップして削除');
+    const btn=document.getElementById('siCompleteBtn');
+    if(btn) btn.textContent='✓ 保存する';
+  } else {
+    setText('siTitle','初期登録 — '+vName);
+    setText('siSub','現在の傷を全て記録してください');
+    const btn=document.getElementById('siCompleteBtn');
+    if(btn) btn.textContent='✓ 登録完了 — チェーン起点を作成';
+  }
+  const lu=document.getElementById('siLastUpd');
+  if(lu) lu.textContent='';
+  siRenderMap();
+  siRenderList();
+}
+
+function siRenderMap(){
+  // レンダリング（クリック無効モードで描画→後でSI用ハンドラを追加）
+  renderMapInto('siMapView',null,siLocalDamages,null,false);
+  const view=document.getElementById('siMapView');
+  if(!view) return;
+  // ゾーンタップ → 傷追加
+  view.querySelectorAll('[id^="iz-"]').forEach(el=>{
+    el.style.cursor='pointer';
+    const zId=el.id;
+    el.addEventListener('click',(e)=>{ e.stopPropagation(); siTapZone(zId); });
+  });
+  // ピンタップ → 削除
+  view.querySelectorAll('.ipin[data-dmg-id]').forEach(pin=>{
+    const dmgId=pin.dataset.dmgId;
+    pin.style.cursor='pointer';
+    pin.style.pointerEvents='all';
+    pin.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      const d=siLocalDamages.find(x=>x.id===dmgId);
+      if(d&&confirm(d.location+'の傷を削除しますか？')){ siDeleteDmg(dmgId); }
+    });
+  });
+  // ヒントラベル
+  const hint=document.createElement('div');
+  hint.style.cssText='position:absolute;bottom:5px;right:8px;font-size:8px;color:#4488cc66;pointer-events:none;font-weight:600;';
+  hint.textContent='ゾーンをタップ → 傷追加';
+  view.appendChild(hint);
+}
+
+function siTapZone(zoneId){
+  const name=ZONE_ID_TO_NAME[zoneId];
+  if(name) openAddDmgSheet(name);
+}
+
+function siDeleteDmg(dmgId){
+  siLocalDamages=siLocalDamages.filter(d=>d.id!==dmgId);
+  siRenderMap();
+  siRenderList();
+  showToast('削除しました');
+}
+
+function siRenderList(){
+  const listEl=document.getElementById('siDmgList');
+  const countEl=document.getElementById('siDmgCount');
+  if(countEl) countEl.textContent=siLocalDamages.length+'件';
+  if(!listEl) return;
+  if(siLocalDamages.length===0){
+    listEl.innerHTML=`<div class="si-empty">
+      <div class="si-empty-icon">🔍</div>
+      <div style="font-size:12px;font-weight:600;color:#4466aa;margin-bottom:4px;">まだ傷は登録されていません</div>
+      <div style="font-size:10px;">上の展開図のゾーンをタップして傷を追加</div>
+    </div>`;
+    return;
+  }
+  const tLMap={scratch:'擦り傷',dent:'凹み',chip:'塗装欠け',crack:'ひび割れ',break:'破損',stain:'汚れ・シミ',burn:'焦げ痕',rust:'錆び',missing:'部品欠損',tire_flat:'パンク',tire_wear:'タイヤ摩耗',other:'その他'};
+  const sLMap={minor:'軽微',moderate:'中程度',major:'重大'};
+  listEl.innerHTML=siLocalDamages.map(d=>{
+    const tL=tLMap[d.type]||d.type;
+    const sL=sLMap[d.severity]||d.severity;
+    const c=dmgColor(d);
+    const sizeLabel=d.size?` ／ ${d.size}`:'';
+    return `<div class="si-dmg-row">
+      <div class="si-dmg-thumb">${d.photo?`<img src="${d.photo}">`:`<span style="font-size:18px;opacity:.6;">⚠</span>`}</div>
+      <div class="si-dmg-info">
+        <div class="si-dmg-loc">${d.location}</div>
+        <div class="si-dmg-meta" style="color:${c};">${tL}${sizeLabel} ／ ${sL}${d.desc&&d.desc!=='手動追加'?' ／ '+d.desc:''}</div>
+      </div>
+      <button class="si-dmg-del" onclick="siDeleteDmg('${d.id}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function siCancel(){
+  siMode=false;
+  siEditMode=false;
+  siLocalDamages=[];
+  goto(siReturnScreen==='sm'?'s0':siReturnScreen);
+}
+
+async function siComplete(){
+  const damages=siLocalDamages;
+  const btn=document.getElementById('siCompleteBtn');
+  if(btn){btn.textContent='⏳ 保存中...';btn.style.pointerEvents='none';}
+
+  // ===== 編集モード: current_damagesのみ更新 =====
+  if(siEditMode){
+    try{
+      const now=new Date().toISOString();
+      const{error}=await sb.from('vehicle_twins').update({
+        current_damages:damages,
+        last_check_at:now,
+        last_check_staff:currentStaff
+      }).eq('id',currentVehicleId);
+      if(error) throw error;
+      const idx=vehiclesCache.findIndex(x=>x.id===currentVehicleId);
+      if(idx>=0) vehiclesCache[idx]={...vehiclesCache[idx],current_damages:damages,last_check_at:now,last_check_staff:currentStaff};
+      renderInspectionMap(damages);
+      const ret=siReturnScreen;
+      siMode=false; siEditMode=false; siLocalDamages=[];
+      goto(ret);
+      // SR0に戻る場合はSR0マップも更新
+      if(ret==='sr0') setTimeout(()=>renderMapInto('sr0MapView',null,damages,null,false),100);
+      setTimeout(()=>showToast(`✓ 傷情報を保存しました（${damages.length}件）`),200);
+    }catch(e){
+      showToast('❌ 保存エラー: '+e.message.slice(0,40));
+      if(btn){btn.textContent='✓ 保存する';btn.style.pointerEvents='all';}
+    }
+    return;
+  }
+
+  // ===== 初期登録モード: check_event作成 + upsert =====
+  try{
+    const now=new Date().toISOString();
+    const{data:ev,error:evErr}=await sb.from('check_events').insert({
+      vehicle_id:currentVehicleId,
+      event_type:'initial',
+      staff:currentStaff,
+      damages_snapshot:damages,
+      new_damages:damages,
+      staff_confirmed:true,
+      confirmed_at:now,
+      notes:`初期登録 ／ 傷${damages.length}件 ／ チェーン起点`
+    }).select().single();
+    if(evErr) throw evErr;
+    await sb.from('vehicle_twins').upsert({
+      id:currentVehicleId,
+      store:'takamatsu',
+      status:'ready',
+      current_damages:damages,
+      last_event_id:ev.id,
+      last_check_at:now,
+      last_check_staff:currentStaff,
+    },{onConflict:'id'});
+    const idx=vehiclesCache.findIndex(x=>x.id===currentVehicleId);
+    if(idx>=0){
+      vehiclesCache[idx]={...vehiclesCache[idx],last_event_id:ev.id,last_check_at:now,last_check_staff:currentStaff,current_damages:damages};
+    }
+    siMode=false; siEditMode=false; siLocalDamages=[];
+    // 初期登録完了 → S0（現状確認ハブ）へ遷移してから車両詳細を再描画
+    await openVehicle(currentVehicleId);
+    setTimeout(()=>showToast(`✓ 初期登録完了 ／ 傷${damages.length}件 ／ チェーンを開始しました`),200);
+  }catch(e){
+    console.error('siComplete:',e);
+    showToast('❌ 保存エラー: '+e.message.slice(0,40));
+    if(btn){btn.textContent='✓ 登録完了 — チェーン起点を作成';btn.style.pointerEvents='all';}
+  }
+}
+
+// ===== 貸出・返却 共通: 展開図メイン描画 =====
+function renderCheckMap(viewId, damages){
+  renderMapInto(viewId, null, damages, null, false);
+  const view=document.getElementById(viewId);
+  if(!view) return;
+  // ピンをタップ → 写真ポップアップ
+  view.querySelectorAll('.ipin[data-dmg-id]').forEach(pin=>{
+    pin.style.cursor='pointer';
+    pin.style.pointerEvents='all';
+    const dmgId=pin.dataset.dmgId;
+    pin.addEventListener('click',(e)=>{
+      e.stopPropagation();
+      // vehiclesCacheから傷を検索
+      const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+      const d=(v?.current_damages||[]).find(x=>x.id===dmgId);
+      if(!d) return;
+      if(d.photo){
+        openPhotoLBDirect(dmgId);
+      } else {
+        // 写真なし → 傷詳細をトースト表示
+        const tLMap={scratch:'擦り傷',dent:'凹み',chip:'塗装欠け',stone_chip:'飛び石',crack:'ひび割れ',break:'破損',stain:'汚れ',burn:'焦げ痕',rust:'錆び',missing:'部品欠損',tire_flat:'パンク',tire_wear:'タイヤ摩耗',other:'その他'};
+        const sLMap={minor:'軽微',moderate:'中程度',major:'重大'};
+        showToast(`📍 ${d.location} ／ ${tLMap[d.type]||d.type} ／ ${sLMap[d.severity]||''}`);
+      }
+    });
+  });
+}
+
+// 傷リスト（コンパクト）. addReturnTo: 追加ボタンを出す場合の戻り先画面ID
+function renderChkDmgList(listId, damages, isReturn, addReturnTo){
+  const el=document.getElementById(listId);
+  if(!el) return;
+  const returnTo=isReturn?'sr0':(addReturnTo||null);
+  const addBtnHtml=returnTo?`<button onclick="openDamageEdit('${returnTo}')" style="width:100%;margin-top:8px;padding:11px;border-radius:12px;border:1.5px solid #ff8800;background:#fff4e6;color:#994400;font-size:12px;font-weight:700;cursor:pointer;touch-action:manipulation;">✏️ 新しい傷を追加する</button>`:'';
+  if(damages.length===0){
+    el.innerHTML=`<div style="text-align:center;padding:10px 0;font-size:11px;color:#8899bb;">傷の記録なし</div>${addBtnHtml}`;
+    return;
+  }
+  const sevC={minor:'#ff8800',moderate:'#ff4444',major:'#ff3333'};
+  const tLMap={scratch:'擦り傷',dent:'凹み',chip:'塗装欠け',stone_chip:'飛び石',crack:'ひび割れ',break:'破損',stain:'汚れ',burn:'焦げ痕',rust:'錆び',missing:'部品欠損',tire_flat:'パンク',tire_wear:'タイヤ摩耗',other:'その他'};
+  let html=`<div style="font-size:9px;color:#8899bb;font-weight:700;letter-spacing:1px;margin-bottom:6px;">傷 ${damages.length}件 — ピンをタップで写真を確認</div>`;
+  html+=`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:${returnTo?'10px':'0'};">`;
+  damages.forEach(d=>{
+    const c=sevC[d.severity]||'#ff8888';
+    const tL=tLMap[d.type]||d.type;
+    html+=`<div style="display:flex;align-items:center;gap:4px;padding:4px 9px;background:#fff;border:1px solid ${c}40;border-radius:20px;font-size:10px;font-weight:600;color:#1a2840;">
+      <div style="width:6px;height:6px;border-radius:50%;background:${c};flex-shrink:0;"></div>
+      ${d.location}${d.photo?'<span style="font-size:8px;color:#4488cc;margin-left:2px;">📷</span>':''}
+    </div>`;
+  });
+  html+=`</div>${addBtnHtml}`;
+  el.innerHTML=html;
+}
+
+// ===== SC0: 出庫説明画面（シンプル表示） =====
+async function renderSc0(){
+  // ③バグ修正: ボタンを即時リセット（前回の「保存中...」をクリア）
+  const checkoutBtn=document.getElementById('sc0CheckoutBtn');
+  if(checkoutBtn){
+    checkoutBtn.textContent='⏳ 読み込み中...';
+    checkoutBtn.style.pointerEvents='none';
+    checkoutBtn.style.opacity='0.6';
+    checkoutBtn.style.background='linear-gradient(135deg,#2266dd,#1144bb)';
+  }
+
+  // ② 最新データをSupabaseから取得（PC/スマホ同期）
+  try{
+    const{data:twin}=await sb.from('vehicle_twins').select('*').eq('id',currentVehicleId).single();
+    if(twin){
+      const idx=vehiclesCache.findIndex(v=>v.id===currentVehicleId);
+      if(idx>=0) vehiclesCache[idx]={...vehiclesCache[idx],...twin};
+    }
+  }catch(e){ console.warn('renderSc0 refresh:',e); }
+
+  const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+  if(!v) return;
+  const damages=v.current_damages||[];
+  const vName=v.vehicles?.name||currentVehicleId||'車両';
+
+  // ③ 予約情報（fleet→reservationsから取得、フォールバックでvehicle_twins）
+  sc0ResvData=await fetchReservationForVehicle(currentVehicleId,'checkout');
+  let resvName='';
+  let resvNo='';
+  if(sc0ResvData){
+    resvName=sc0ResvData.name||'';
+    resvNo=sc0ResvData.id||'';
+  } else {
+    resvName=v.current_customer||'';
+    resvNo=v.current_resv_no||'';
+    if(resvNo||resvName){
+      sc0ResvData={id:resvNo, name:resvName, lend_date:'', lend_time:'', return_date:'', return_time:''};
+    }
+  }
+
+  const titleEl=document.getElementById('sc0Title');
+  const subEl=document.getElementById('sc0Sub');
+  if(titleEl) titleEl.textContent=vName;
+  if(subEl){
+    if(resvName||resvNo){
+      subEl.textContent=(resvName?resvName+' 様':'')+(resvNo?' ／ 予約: '+resvNo:'');
+      subEl.style.color='#88aacc';
+    } else {
+      subEl.textContent='予約情報なし（配車未割当）';
+      subEl.style.color='#ffaa44';
+    }
+  }
+
+  renderCheckMap('sc0MapView', damages);
+
+  // 予約バナー表示
+  const banner=document.getElementById('sc0ResvBanner');
+  if(banner) banner.innerHTML=resvBannerHtml(sc0ResvData, 'checkout');
+
+  // ② ステータスチェック — 既に貸出中なら承認ボタンを無効化
+  const btn2=document.getElementById('sc0CheckoutBtn');
+  if(btn2){
+    if(v.status==='out'){
+      btn2.textContent='🟡 すでに貸出中です — 別のスタッフが処理済み';
+      btn2.style.background='linear-gradient(135deg,#886600,#664400)';
+      btn2.style.pointerEvents='none';
+      btn2.style.opacity='0.7';
+    } else if(v.status==='returned'||v.status==='maintenance'){
+      btn2.textContent=`⚠ ステータスが「${STATUS_DEF[v.status]?.label||v.status}」です`;
+      btn2.style.background='linear-gradient(135deg,#555,#333)';
+      btn2.style.pointerEvents='none';
+      btn2.style.opacity='0.6';
+    } else {
+      // タップ貫通防止: 300ms後に有効化（前画面のtouchendが届かないように）
+      btn2.textContent='⏳ 読み込み中...';
+      btn2.style.background='linear-gradient(135deg,#2266dd,#1144bb)';
+      btn2.style.pointerEvents='none';
+      btn2.style.opacity='0.5';
+      setTimeout(()=>{
+        const b=document.getElementById('sc0CheckoutBtn');
+        if(b&&b.textContent.includes('読み込み中')){
+          b.textContent='✅ 承認します — 貸出開始';
+          b.style.pointerEvents='all';
+          b.style.opacity='1';
+        }
+      },350);
+    }
+  }
+
+  // ① 貸出ページにも傷追加ボタン
+  renderChkDmgList('sc0DmgList', damages, false, 'sc0');
+}
+
+// toggleAcc / toggleConfirm は SC0シンプル化により不要（削除）
+
+async function sc0Checkout(){
+  // チェックアウトイベントをチェーンに記録
+  if(!currentVehicleId||!currentStaff) return;
+  const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+  const damages=v?.current_damages||[];
+  // sc0ResvDataがあればそちらを優先（配車表から取得した予約情報）
+  const customer=v?.current_customer||sc0ResvData?.name||'—';
+  const resvNo=v?.current_resv_no||sc0ResvData?.id||'—';
+  const prevEventId=v?.last_event_id||null;
+  try{
+    const{data:ev,error}=await sb.from('check_events').insert({
+      vehicle_id:currentVehicleId,
+      event_type:'checkout',
+      staff:currentStaff,
+      customer_name:customer,
+      resv_no:resvNo,
+      damages_snapshot:damages,
+      new_damages:[],
+      staff_confirmed:true,
+      confirmed_at:new Date().toISOString(),
+      prev_event_id:prevEventId,
+      notes:`出庫チェック ／ 傷${damages.length}件確認済み`
+    }).select().single();
+    if(error) throw error;
+    // vehicle_twins: status='out' + last_event_id + 予約情報 更新
+    const now=new Date().toISOString();
+    await sb.from('vehicle_twins').update({
+      status:'out',
+      last_event_id:ev.id,
+      last_check_at:now,
+      last_check_staff:currentStaff,
+      current_resv_no:resvNo!=='—'?resvNo:null,
+      current_customer:customer!=='—'?customer:null,
+    }).eq('id',currentVehicleId);
+    const idx=vehiclesCache.findIndex(v=>v.id===currentVehicleId);
+    if(idx>=0){vehiclesCache[idx]={...vehiclesCache[idx],status:'out',last_event_id:ev.id,last_check_at:now,last_check_staff:currentStaff,current_resv_no:resvNo!=='—'?resvNo:null,current_customer:customer!=='—'?customer:null};}
+    const btn=document.getElementById('sc0CheckoutBtn');
+    if(btn){btn.textContent='✓ 出庫完了';btn.style.background='linear-gradient(135deg,#00aa55,#007733)';}
+  }catch(e){
+    console.warn('sc0Checkout save error:',e);
+    showToast('❌ 保存エラー: '+e.message.slice(0,40));
+    return;
+  }
+  goto('sm');
+  setTimeout(()=>showToast(`✓ 出庫チェック完了 ／ ${customer} 様 ／ チェーンに記録`),200);
+}
+
+// ===== 返却済み → 空車に変更 =====
+async function markVehicleReady(){
+  try{
+    const now=new Date().toISOString();
+    await sb.from('vehicle_twins').update({status:'ready',last_check_at:now,last_check_staff:currentStaff}).eq('id',currentVehicleId);
+    const idx=vehiclesCache.findIndex(v=>v.id===currentVehicleId);
+    if(idx>=0){vehiclesCache[idx]={...vehiclesCache[idx],status:'ready',last_check_at:now,last_check_staff:currentStaff};}
+    await openVehicle(currentVehicleId);
+    showToast('🟢 空車に変更しました');
+  }catch(e){showToast('❌ 変更エラー: '+e.message.slice(0,40));}
+}
+
+// ===== 本日の予約を取得（札幌のみ）=====
+let sc0ResvData=null; // SC0で取得した予約データ
+
+async function fetchReservationForVehicle(vehicleId, mode){
+  // mode: 'checkout' = 本日以降の直近貸出予約, 'return' = 現在貸出中（返却日が今日以降）
+  // 高松店は予約連動なし
+  return null;
+  try{
+    // 1. fleetテーブルからこの車両に配車されている予約IDを全取得
+    const{data:fleetRows}=await sb.from('fleet')
+      .select('reservation_id')
+      .eq('vehicle_code',vehicleId);
+    if(!fleetRows||fleetRows.length===0) return null;
+    const resvIds=fleetRows.map(f=>f.reservation_id);
+
+    // 2. reservationsから該当予約を検索
+    const _n2=new Date();const today=_n2.getFullYear()+'-'+String(_n2.getMonth()+1).padStart(2,'0')+'-'+String(_n2.getDate()).padStart(2,'0');
+    let query=sb.from('reservations')
+      .select('id,name,lend_date,lend_time,return_date,return_time,ota,people,vehicle,insurance,tel')
+      .in('id',resvIds)
+      .not('status','eq','cancelled')
+      .not('status','eq','キャンセル');
+
+    if(mode==='checkout'){
+      // 貸出チェック: 今日が貸出日の予約のみ
+      query=query.eq('lend_date',today).order('lend_time',{ascending:true});
+    } else {
+      // 返却チェック: 今日が返却日の予約（貸出日≤今日 & 返却日=今日）
+      query=query.lte('lend_date',today).eq('return_date',today).order('return_time',{ascending:true});
+    }
+    const{data}=await query.limit(1).maybeSingle();
+    return data||null;
+  }catch(e){
+    console.warn('fetchReservationForVehicle:',e);
+    return null;
+  }
+}
+// 後方互換
+async function fetchTodayReservation(vehicleId){ return fetchReservationForVehicle(vehicleId,'checkout'); }
+
+// 予約バナーHTML生成
+function resvBannerHtml(resv, mode){
+  if(!resv) return '';
+  const timeLabel = mode==='checkout' ? `貸出: ${resv.lend_date||'—'} ${resv.lend_time||''}` : `返却予定: ${resv.return_date||'—'} ${resv.return_time||''}`;
+  const otaLabel = resv.ota ? `<span style="font-size:9px;padding:2px 7px;border-radius:5px;background:#ffffff15;color:#88ccff;margin-left:6px;">${resv.ota}</span>` : '';
+  return `<div style="background:linear-gradient(135deg,#162d52,#1a3660);margin:6px 16px 0;padding:11px 14px;border-radius:12px;display:flex;gap:10px;align-items:flex-start;box-shadow:0 2px 10px rgba(20,40,100,.15);">
+    <div style="font-size:20px;flex-shrink:0;margin-top:1px;">📋</div>
+    <div style="flex:1;">
+      <div style="font-size:11px;font-weight:800;color:#ffffff;margin-bottom:3px;">${resv.name||'—'} 様${otaLabel}</div>
+      <div style="font-size:10px;color:#99bbdd;line-height:1.6;">予約番号: <b style="color:#fff;">${resv.id||'—'}</b><br>${timeLabel}</div>
+    </div>
+  </div>`;
+}
+
+// ===== SRP: 修理管理 =====
+let repairCurrentDmgId = null;
+let repairSelectedStaff = null;
+
+function openRepairPage(){
+  goto('srp');
+}
+
+async function renderSrp(){
+  const v = vehiclesCache.find(x => x.id === currentVehicleId);
+  if(!v) return;
+  const vName = v.vehicles?.name || currentVehicleId;
+  const damages = v.current_damages || [];
+
+  document.getElementById('srpTitle').textContent = vName + ' — 修理管理';
+  document.getElementById('srpSub').textContent = `現在の傷 ${damages.length}件`;
+
+  const body = document.getElementById('srpBody');
+  if(!body) return;
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:#8899bb;font-size:12px;">読み込み中...</div>';
+
+  const { data: hist, error } = await sb.from('repair_records')
+    .select('*')
+    .eq('vehicle_id', currentVehicleId)
+    .order('repair_date', { ascending: false })
+    .limit(50);
+
+  const tLMap = {scratch:'擦り傷',dent:'凹み',chip:'塗装欠け',crack:'ひび割れ',break:'破損',stain:'汚れ・シミ',burn:'焦げ痕',rust:'錆び',missing:'部品欠損',tire_flat:'パンク',tire_wear:'タイヤ摩耗',other:'その他'};
+  const sLMap = {minor:'軽微',moderate:'中程度',major:'重大'};
+
+  let html = '';
+
+  // 現在の傷リスト（修理対象）
+  html += `<div class="srp-section-hd">🔩 修理が必要な傷 — ${damages.length}件</div>`;
+  if(damages.length === 0){
+    html += `<div class="srp-empty">✓ 修理が必要な傷はありません</div>`;
+  } else {
+    damages.forEach(d => {
+      const c = dmgColor(d);
+      const tL = tLMap[d.type] || d.type || '—';
+      const sL = sLMap[d.severity] || d.severity || '';
+      html += `
+      <div class="srp-dmg-card">
+        <div class="srp-dmg-hd">
+          <div class="srp-dmg-dot" style="background:${c};"></div>
+          <div class="srp-dmg-info">
+            <div class="srp-dmg-loc">${d.location}</div>
+            <div class="srp-dmg-meta">${tL}${sL?' ／ '+sL:''}${d.addedAt?' ／ '+d.addedAt:''}</div>
+          </div>
+          <button class="srp-repair-btn" onclick="openRepairModal('${d.id}')">🔧 修理登録</button>
+        </div>
+      </div>`;
+    });
+  }
+
+  // 修理履歴
+  const histList = hist || [];
+  html += `<div class="srp-section-hd" style="margin-top:20px;">📋 修理履歴 — ${histList.length}件</div>`;
+  if(histList.length === 0){
+    html += `<div class="srp-empty">まだ修理記録がありません</div>`;
+  } else {
+    histList.forEach(r => {
+      const amt = r.amount ? `¥${r.amount.toLocaleString()}` : '金額未記載';
+      html += `
+      <div class="srp-hist-card">
+        <div class="srp-hist-loc">${r.damage_location || '—'}</div>
+        <div class="srp-hist-row">
+          ${r.vendor ? `<div class="srp-hist-tag">🏭 ${r.vendor}</div>` : ''}
+          <div class="srp-hist-tag">📅 ${r.repair_date || '—'}</div>
+          ${r.staff ? `<div class="srp-hist-tag">👤 ${r.staff}</div>` : ''}
+          <div class="srp-hist-amt">${amt}</div>
+        </div>
+        ${r.notes ? `<div style="font-size:10px;color:#8899bb;margin-top:5px;">${r.notes}</div>` : ''}
+      </div>`;
+    });
+  }
+
+  body.innerHTML = html;
+}
+
+function openRepairModal(dmgId){
+  const v = vehiclesCache.find(x => x.id === currentVehicleId);
+  if(!v) return;
+  const d = (v.current_damages || []).find(x => x.id === dmgId);
+  if(!d) return;
+
+  repairCurrentDmgId = dmgId;
+  repairSelectedStaff = currentStaff || null;
+
+  const c = dmgColor(d);
+  const tLMap = {scratch:'擦り傷',dent:'凹み',chip:'塗装欠け',crack:'ひび割れ',break:'破損',stain:'汚れ・シミ',burn:'焦げ痕',rust:'錆び',missing:'部品欠損',tire_flat:'パンク',tire_wear:'タイヤ摩耗',other:'その他'};
+  const sLMap = {minor:'軽微',moderate:'中程度',major:'重大'};
+
+  document.getElementById('repairDmgDot').style.background = c;
+  document.getElementById('repairDmgLoc').textContent = d.location;
+  document.getElementById('repairDmgMeta').textContent = `${tLMap[d.type]||d.type||'—'} ／ ${sLMap[d.severity]||d.severity||'—'}${d.addedAt?' ／ '+d.addedAt:''}`;
+
+  document.getElementById('repairVendor').value = '';
+  document.getElementById('repairDate').value = new Date().toISOString().slice(0,10);
+  document.getElementById('repairAmount').value = '';
+  document.getElementById('repairNotes').value = '';
+
+  // スタッフグリッド（現店舗のスタッフ）
+  const staffGrid = document.getElementById('repairStaffGrid');
+  const staffList = STAFF_LIST.filter(s => s.store === 'both' || s.store === currentStore);
+  staffGrid.innerHTML = staffList.map(s =>
+    `<button class="repair-staff-btn${currentStaff===s.name?' sel':''}" onclick="selRepairStaff(this,'${s.name}')">${s.name}</button>`
+  ).join('');
+
+  document.getElementById('repairModal').classList.add('show');
+}
+
+function selRepairStaff(btn, name){
+  document.querySelectorAll('.repair-staff-btn').forEach(b => b.classList.remove('sel'));
+  btn.classList.add('sel');
+  repairSelectedStaff = name;
+}
+
+function closeRepairModal(event){
+  if(event && event.target !== document.getElementById('repairModal')) return;
+  document.getElementById('repairModal').classList.remove('show');
+  repairCurrentDmgId = null;
+}
+
+async function submitRepair(){
+  if(!repairCurrentDmgId) return;
+
+  const vendor = document.getElementById('repairVendor').value.trim();
+  const repairDate = document.getElementById('repairDate').value;
+  const amount = parseInt(document.getElementById('repairAmount').value) || 0;
+  const notes = document.getElementById('repairNotes').value.trim();
+  const staff = repairSelectedStaff || currentStaff;
+
+  const v = vehiclesCache.find(x => x.id === currentVehicleId);
+  if(!v) return;
+  const d = (v.current_damages || []).find(x => x.id === repairCurrentDmgId);
+  if(!d) return;
+
+  const submitBtn = document.querySelector('#repairModal .btn-primary');
+  if(submitBtn){ submitBtn.textContent = '⏳ 保存中...'; submitBtn.style.pointerEvents = 'none'; }
+
+  try{
+    const now = new Date().toISOString();
+
+    // 1. repair_records に登録
+    const { error: repErr } = await sb.from('repair_records').insert({
+      vehicle_id: currentVehicleId,
+      store: 'takamatsu',
+      damage_id: repairCurrentDmgId,
+      damage_location: d.location,
+      damage_type: d.type,
+      damage_severity: d.severity,
+      vendor: vendor || null,
+      amount: amount,
+      repair_date: repairDate || null,
+      staff: staff,
+      notes: notes || null,
+    });
+    if(repErr) throw repErr;
+
+    // 2. check_events に「repair」イベント記録（傷履歴は消えない）
+    const prevEventId = v.last_event_id || null;
+    const { data: ev, error: evErr } = await sb.from('check_events').insert({
+      vehicle_id: currentVehicleId,
+      event_type: 'repair',
+      staff: staff,
+      damages_snapshot: v.current_damages || [],
+      new_damages: [],
+      staff_confirmed: true,
+      confirmed_at: now,
+      prev_event_id: prevEventId,
+      notes: `修理完了 ／ ${d.location} ／ ${vendor||'業者不明'} ／ ¥${amount.toLocaleString()}`
+    }).select().single();
+    if(evErr) throw evErr;
+
+    // 3. current_damages から傷を削除
+    const updated = await safeWriteDamages(currentVehicleId, fresh => fresh.filter(x => x.id !== repairCurrentDmgId));
+    const { error: twErr } = await sb.from('vehicle_twins').update({
+      current_damages: updated,
+      last_event_id: ev.id,
+      last_check_at: now,
+      last_check_staff: staff,
+    }).eq('id', currentVehicleId);
+    if(twErr) throw twErr;
+
+    // 4. ローカルキャッシュ更新
+    const idx = vehiclesCache.findIndex(x => x.id === currentVehicleId);
+    if(idx >= 0){
+      vehiclesCache[idx] = { ...vehiclesCache[idx], current_damages: updated, last_event_id: ev.id, last_check_at: now, last_check_staff: staff };
+    }
+
+    document.getElementById('repairModal').classList.remove('show');
+    repairCurrentDmgId = null;
+
+    // SRP再描画 & S0マップ更新
+    await renderSrp();
+    renderInspectionMap(updated);
+
+    showToast(`🔧 ${d.location}の修理を登録しました${amount ? ' ／ ¥'+amount.toLocaleString() : ''}`);
+  }catch(e){
+    console.error('submitRepair:', e);
+    // repair_records テーブルが未作成の場合は特別メッセージ
+    if(e.message && e.message.includes('repair_records')){
+      showToast('⚠ repair_recordsテーブルが未作成です — SupabaseでSQL実行が必要');
+    } else {
+      showToast('❌ 保存エラー: ' + e.message.slice(0,40));
+    }
+    if(submitBtn){ submitBtn.textContent = '🔧 修理完了として登録'; submitBtn.style.pointerEvents = 'all'; }
+  }
+}
+
+// ===== SRC: 修理費用管理 =====
+let srcPeriod = 'month';
+
+function openCostPage(){
+  goto('src');
+}
+
+async function renderSrc(){
+  const body = document.getElementById('srcBody');
+  if(!body) return;
+  body.innerHTML = '<div style="text-align:center;padding:30px;color:#8899bb;font-size:12px;">読み込み中...</div>';
+
+  // 期間フィルタ
+  const now = new Date();
+  let fromDate = null;
+  if(srcPeriod === 'month'){
+    fromDate = now.getFullYear() + '-' + String(now.getMonth()+1).padStart(2,'0') + '-01';
+  } else if(srcPeriod === '3month'){
+    const d = new Date(now); d.setMonth(d.getMonth()-3);
+    fromDate = d.toISOString().slice(0,10);
+  } else if(srcPeriod === 'year'){
+    fromDate = now.getFullYear() + '-01-01';
+  }
+
+  let query = sb.from('repair_records')
+    .select('*')
+    .eq('store', 'takamatsu')
+    .order('repair_date', { ascending: false });
+  if(fromDate) query = query.gte('repair_date', fromDate);
+
+  const { data: records, error } = await query;
+  if(error){
+    if(error.message && error.message.includes('repair_records')){
+      body.innerHTML = `<div style="text-align:center;padding:40px 20px;color:#8899bb;">
+        <div style="font-size:32px;margin-bottom:12px;">🗄</div>
+        <div style="font-size:14px;font-weight:700;color:#ffbb55;margin-bottom:8px;">テーブル未作成</div>
+        <div style="font-size:11px;line-height:1.8;">Supabaseで以下のSQLを実行してください：<br>
+        <code style="font-size:10px;background:#1a2840;color:#88ccff;padding:8px 12px;border-radius:8px;display:block;margin-top:10px;text-align:left;">create table repair_records (
+  id uuid primary key default gen_random_uuid(),
+  vehicle_id text not null,
+  store text,
+  damage_id text,
+  damage_location text,
+  damage_type text,
+  damage_severity text,
+  vendor text,
+  amount integer default 0,
+  repair_date date,
+  staff text,
+  notes text,
+  check_event_id uuid,
+  created_at timestamptz default now()
+);</code></div>
+      </div>`;
+    } else {
+      body.innerHTML = '<div style="text-align:center;padding:30px;color:#ff8888;">読み込みエラー</div>';
+    }
+    return;
+  }
+
+  const recs = records || [];
+  const totalAmt = recs.reduce((s, r) => s + (r.amount || 0), 0);
+  const avgAmt = recs.length > 0 ? Math.round(totalAmt / recs.length) : 0;
+  const periodLabel = {month:'今月','3month':'直近3ヶ月',year:'今年',all:'全期間'}[srcPeriod];
+
+  let html = '';
+
+  // フィルタボタン
+  html += `<div class="src-filter-row">
+    ${['month','3month','year','all'].map(p =>
+      `<button class="src-filter-btn${srcPeriod===p?' active':''}" onclick="srcSetPeriod('${p}')">${{month:'今月','3month':'3ヶ月',year:'今年',all:'全期間'}[p]}</button>`
+    ).join('')}
+  </div>`;
+
+  // KPI
+  html += `<div class="src-kpi-row">
+    <div class="src-kpi"><div class="src-kpi-n">¥${totalAmt.toLocaleString()}</div><div class="src-kpi-l">合計（${periodLabel}）</div></div>
+    <div class="src-kpi"><div class="src-kpi-n">${recs.length}</div><div class="src-kpi-l">修理件数</div></div>
+    <div class="src-kpi"><div class="src-kpi-n">${recs.length>0?'¥'+avgAmt.toLocaleString():'—'}</div><div class="src-kpi-l">平均単価</div></div>
+  </div>`;
+
+  if(recs.length === 0){
+    html += `<div style="text-align:center;padding:40px;color:#8899bb;font-size:12px;">${periodLabel}の修理記録なし</div>`;
+    body.innerHTML = html;
+    return;
+  }
+
+  // 車両別集計
+  html += `<div class="srp-section-hd">🚗 車両別</div>`;
+  const byVeh = {};
+  recs.forEach(r => {
+    const vid = r.vehicle_id;
+    if(!byVeh[vid]) byVeh[vid] = { total:0, cnt:0, rows:[] };
+    byVeh[vid].total += r.amount || 0;
+    byVeh[vid].cnt++;
+    byVeh[vid].rows.push(r);
+  });
+
+  Object.entries(byVeh).sort((a,b) => b[1].total - a[1].total).forEach(([vid, vd]) => {
+    const vInfo = vehiclesCache.find(x => x.id === vid);
+    const vName = vInfo?.vehicles?.name || vid;
+    const plate = vInfo?.vehicles?.plate_no || '';
+    html += `
+    <div class="src-veh-card">
+      <div class="src-veh-hd" onclick="this.nextElementSibling.style.display=this.nextElementSibling.style.display==='none'?'block':'none';">
+        <div>
+          <div class="src-veh-name">${vName}${plate?` <span style="font-size:9px;color:#8899bb;">${plate}</span>`:''}</div>
+          <div class="src-veh-cnt">${vd.cnt}件</div>
+        </div>
+        <div class="src-veh-amt">¥${vd.total.toLocaleString()}</div>
+      </div>
+      <div style="display:none;">
+        ${vd.rows.map(r => `
+        <div class="src-repair-row">
+          <div class="src-repair-loc">
+            <div style="font-weight:600;">${r.damage_location||'—'}</div>
+            <div style="font-size:9px;color:#8899bb;">${r.vendor||'業者不明'} ／ ${r.repair_date||'—'} ／ ${r.staff||'—'}</div>
+            ${r.notes?`<div style="font-size:9px;color:#8899bb;">${r.notes}</div>`:''}
+          </div>
+          <div class="src-repair-amt">¥${(r.amount||0).toLocaleString()}</div>
+        </div>`).join('')}
+      </div>
+    </div>`;
+  });
+
+  // 月別集計（全期間・今年のみ）
+  if(srcPeriod === 'all' || srcPeriod === 'year' || srcPeriod === '3month'){
+    html += `<div class="srp-section-hd" style="margin-top:16px;">📅 月別</div>`;
+    const byMonth = {};
+    recs.forEach(r => {
+      if(!r.repair_date) return;
+      const mon = r.repair_date.slice(0,7);
+      byMonth[mon] = (byMonth[mon]||0) + (r.amount||0);
+    });
+    const maxAmt = Math.max(...Object.values(byMonth), 1);
+    Object.entries(byMonth).sort((a,b) => b[0].localeCompare(a[0])).forEach(([mon, amt]) => {
+      const pct = Math.max(Math.round(amt/maxAmt*80), 3);
+      html += `
+      <div class="src-month-row">
+        <div class="src-month-lbl">${mon}</div>
+        <div class="src-month-bar" style="width:${pct}%;"></div>
+        <div class="src-month-amt">¥${amt.toLocaleString()}</div>
+      </div>`;
+    });
+  }
+
+  body.innerHTML = html;
+}
+
+function srcSetPeriod(p){
+  srcPeriod = p;
+  renderSrc();
+}
+
+// ===== 写真ライトボックス =====
+function openPhotoLBDirect(dmgId){
+  const v=vehiclesCache.find(x=>x.id===currentVehicleId);
+  const d=(v?.current_damages||[]).find(x=>x.id===dmgId);
+  if(!d||!d.photo) return;
+  const inner=document.getElementById('lbCanvasInner');
+  if(inner) inner.innerHTML=`<img src="${d.photo}" style="width:100%;display:block;border-radius:12px;">`;
+  document.getElementById('lbLoc').textContent=d.location;
+  document.getElementById('lbSub').textContent=(d.addedAt||'—')+' 記録 ／ 担当: '+(d.addedBy||'—');
+  document.getElementById('lbDesc').textContent=d.desc||'';
+  const meta=document.getElementById('lbMeta');
+  const tL={scratch:'擦り傷',dent:'凹み',chip:'塗装欠け',crack:'ひび割れ',other:'その他'};
+  const sL={minor:'軽微',moderate:'中程度',major:'重大'};
+  if(meta) meta.innerHTML=`<div class="photo-lb-tag">${tL[d.type]||d.type||'—'}</div><div class="photo-lb-tag">${sL[d.severity]||d.severity||'—'}</div>`;
+  document.getElementById('photoLb').classList.add('show');
+}
+function closePhotoLB(e){
+  if(e&&e.target!==document.getElementById('photoLb'))return;
+  document.getElementById('photoLb').classList.remove('show');
+}
+</script>
+</body>
+</html>
