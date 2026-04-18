@@ -156,6 +156,16 @@ html,body{width:100%;height:100%;overflow:hidden;background:#eef2f7;font-family:
 .dmg-del-btn:active{background:#ffeeee;}
 .dmg-repair-btn{width:100%;padding:14px;border-radius:12px;border:1.5px solid #00aa55;background:#edfaf4;color:#007733;font-size:14px;font-weight:700;cursor:pointer;}
 
+/* ===== ゾーン傷リストシート ===== */
+.zdl-overlay{position:fixed;inset:0;background:#00000055;z-index:260;opacity:0;pointer-events:none;transition:opacity .22s;max-width:520px;margin:0 auto;}
+.zdl-overlay.show{opacity:1;pointer-events:all;}
+.zdl-sheet{position:absolute;bottom:0;left:0;right:0;background:#ffffff;border-radius:22px 22px 0 0;padding:20px 20px;padding-bottom:max(env(safe-area-inset-bottom),24px);transform:translateY(100%);transition:transform .32s cubic-bezier(.32,1,.58,1);border-top:1px solid #dde8f4;max-height:75vh;overflow-y:auto;}
+.zdl-overlay.show .zdl-sheet{transform:translateY(0);}
+.zdl-handle{width:36px;height:4px;border-radius:2px;background:#d0dce8;margin:0 auto 14px;}
+.zdl-add-btn{width:100%;padding:14px;border-radius:12px;border:1.5px solid #4488cc;background:#eef4fc;color:#2266cc;font-size:14px;font-weight:700;cursor:pointer;margin-bottom:10px;}
+.zdl-add-btn:active{background:#ddeeff;}
+.zdl-close-btn{width:100%;padding:12px;border-radius:12px;background:#f4f6fa;border:1px solid #d8e4f0;color:#5577aa;font-size:13px;font-weight:600;cursor:pointer;}
+
 /* ===== 手動編集ボタン ===== */
 .s0-edit-btn{display:flex;align-items:center;justify-content:center;gap:6px;margin:8px 16px 0;padding:10px;border-radius:12px;background:#fff;border:1.5px solid #4488cc;color:#2266cc;font-size:13px;font-weight:700;cursor:pointer;}
 .s0-edit-btn:active{background:#eef4fc;}
@@ -486,7 +496,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#eef2f7;font-family:
   .sc0-section-label{padding:8px 24px 4px;}
 
   /* オーバーレイ */
-  .edit-overlay,.dmg-edit-overlay,.conf-overlay,.photo-lb{max-width:640px;}
+  .edit-overlay,.dmg-edit-overlay,.zdl-overlay,.conf-overlay,.photo-lb{max-width:640px;}
   .sp-bottom{max-width:640px;}
   .s4-hd{padding:28px 28px 16px;}
   .s4-scroll{padding:12px 28px;}
@@ -546,7 +556,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#eef2f7;font-family:
   .sc0-section-label{padding:8px 48px 4px;}
 
   /* オーバーレイ: PC幅に合わせる + シートは中央寄せ */
-  .edit-overlay,.dmg-edit-overlay,.conf-overlay,.photo-lb{max-width:1080px;}
+  .edit-overlay,.dmg-edit-overlay,.zdl-overlay,.conf-overlay,.photo-lb{max-width:1080px;}
   .sp-bottom{max-width:1080px;}
   .edit-sheet,.dmg-edit-sheet,.conf-sheet{
     max-width:560px;
@@ -579,12 +589,24 @@ html,body{width:100%;height:100%;overflow:hidden;background:#eef2f7;font-family:
     <div class="login-logo">BUDDICA</div>
     <div class="login-title">車両チェック</div>
 
-    <!-- 高松店のみ: 店舗選択をスキップしてスタッフ選択へ直行 -->
-    <div id="loginStep1" style="display:none;"></div>
+    <!-- STEP 1: 店舗選択 -->
+    <div id="loginStep1" style="width:100%;display:flex;flex-direction:column;align-items:center;">
+      <div class="login-sub">店舗を選択してください</div>
+      <div class="store-sel-wrap">
+        <button class="store-sel-card" onclick="selectStore('takamatsu')">
+          <div class="store-icon">🍊</div>
+          <div class="store-info">
+            <div class="store-name">高松店</div>
+            <div class="store-sub">香川県高松市</div>
+          </div>
+        </button>
+      </div>
+    </div>
 
     <!-- STEP 2: スタッフ選択 -->
-    <div id="loginStep2" class="login-step2 active">
-      <div class="login-store-badge" id="loginStoreBadge">高松店</div>
+    <div id="loginStep2" class="login-step2">
+      <button class="login-back" onclick="backToStep1()">‹ 店舗を選び直す</button>
+      <div class="login-store-badge" id="loginStoreBadge"></div>
       <div class="login-sub" style="margin-bottom:20px;">担当スタッフを選択してください</div>
       <div class="login-grid" id="staffGrid"></div>
     </div>
@@ -595,15 +617,14 @@ html,body{width:100%;height:100%;overflow:hidden;background:#eef2f7;font-family:
 <div class="screen" id="sm">
   <div class="sm-hd">
     <div class="sm-hd-top">
-      <div class="sm-logo" style="display:flex;align-items:center;gap:5px;">BUDDICA <span style="font-size:8px;color:#4488cc88;font-weight:600;letter-spacing:1px;">v1.0.0</span><span id="rtDot" class="rt-dot" title="接続中..."></span></div>
+      <div class="sm-logo" style="display:flex;align-items:center;gap:5px;">BUDDICA <span style="font-size:8px;color:#4488cc88;font-weight:600;letter-spacing:1px;">v1.0.0-TKM</span><span id="rtDot" class="rt-dot" title="接続中..."></span></div>
       <div style="display:flex;align-items:center;gap:8px;">
         <div style="font-size:10px;color:#88aacc;" id="smStaffLabel"></div>
         <button onclick="reloadVehicles()" id="smReloadBtn" style="font-size:9px;color:#88ccff;background:#ffffff10;border:1px solid #88ccff30;border-radius:6px;padding:3px 8px;cursor:pointer;" title="車両一覧を更新">🔄</button>
         <button onclick="openTestReset()" style="font-size:9px;color:#ff8888;background:#ffffff10;border:1px solid #ff444430;border-radius:6px;padding:3px 8px;cursor:pointer;touch-action:manipulation;" title="テストリセット">🗑️</button>
         <button onclick="openApiKeySetting()" id="smAiBtn" style="font-size:9px;color:#ffaa44;background:#ffffff10;border:1px solid #ffaa4430;border-radius:6px;padding:3px 8px;cursor:pointer;" title="Claude APIキー設定">🤖</button>
         <button onclick="goto('login')" style="font-size:9px;color:#4488aa;background:#ffffff15;border:1px solid #ffffff20;border-radius:6px;padding:3px 8px;cursor:pointer;">切替</button>
-        <!-- 管理APPリンク（BUDDICA用に後で設定） -->
-        <a id="smAppLink" href="#" target="_blank" style="display:none;">管理APP</a>
+        <!-- 管理APPリンク（未設定） -->
       </div>
     </div>
     <div style="font-size:22px;font-weight:800;margin-bottom:2px;">車両一覧</div>
@@ -918,6 +939,22 @@ html,body{width:100%;height:100%;overflow:hidden;background:#eef2f7;font-family:
   </div>
 </div>
 
+<!-- ===== ゾーン傷リストシート ===== -->
+<div class="zdl-overlay" id="zdlOverlay" onclick="closeZoneDmgList(event)">
+  <div class="zdl-sheet">
+    <div class="zdl-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div>
+        <div style="font-size:16px;font-weight:800;color:#1a2840;" id="zdlZoneName">—</div>
+        <div style="font-size:11px;color:#7799bb;margin-top:2px;" id="zdlCount">—</div>
+      </div>
+    </div>
+    <button class="zdl-add-btn" id="zdlAddBtn">＋ この箇所に傷を追加</button>
+    <div id="zdlList"></div>
+    <button class="zdl-close-btn" onclick="closeZoneDmgList()">閉じる</button>
+  </div>
+</div>
+
 <!-- ===== 手動編集パネル ===== -->
 <div class="edit-overlay" id="editOverlay" onclick="closeEditPanel(event)">
   <div class="edit-sheet">
@@ -994,6 +1031,26 @@ html,body{width:100%;height:100%;overflow:hidden;background:#eef2f7;font-family:
 <input type="file" id="libraryInput" accept="image/*" style="display:none;" onchange="handlePhotoSelect(this)">
 
 <script>
+// ===== グローバルエラーハンドラ（白画面防止）=====
+// JSエラーが起きても画面にエラー内容を表示し、自動リトライする
+window.onerror=function(msg,src,line,col,err){
+  console.error('[GLOBAL ERROR]',msg,src,line,col,err);
+  // 既にエラーバナーがあれば二重表示しない
+  if(document.getElementById('_globalErrBanner')) return;
+  var ban=document.createElement('div');
+  ban.id='_globalErrBanner';
+  ban.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99999;background:#cc2222;color:#fff;padding:16px 20px;font-size:13px;font-family:sans-serif;text-align:left;line-height:1.5;';
+  ban.innerHTML='<b>⚠ アプリエラー</b><br>'
+    +'<span style="font-size:11px;opacity:.9;">'+String(msg).substring(0,120)+'</span><br>'
+    +'<span style="font-size:10px;opacity:.7;">line:'+line+' col:'+col+'</span><br>'
+    +'<button onclick="location.reload()" style="margin-top:8px;padding:6px 16px;background:#fff;color:#cc2222;border:none;border-radius:6px;font-weight:700;font-size:13px;cursor:pointer;">再読み込み</button>'
+    +' <button onclick="this.parentElement.remove()" style="margin-top:8px;padding:6px 12px;background:transparent;color:#fff;border:1px solid #fff8;border-radius:6px;font-size:12px;cursor:pointer;">閉じる</button>';
+  document.body.appendChild(ban);
+};
+window.addEventListener('unhandledrejection',function(ev){
+  console.error('[UNHANDLED REJECTION]',ev.reason);
+});
+
 // ===== Supabase 初期化 =====
 const SUPA_URL='https://iuxsjjyfzjyohqvnaxei.supabase.co';
 const SUPA_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml1eHNqanlmemp5b2hxdm5heGVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0NjI1MzYsImV4cCI6MjA5MjAzODUzNn0.lwF5DBs8PbzmTMKpW08jq-8IwvJt4I-Dqm07I5VhwmY';
@@ -1005,18 +1062,16 @@ if('serviceWorker' in navigator){
 }
 
 // ===== スタッフ管理 =====
-// BUDDICA高松店スタッフ（後で追加・変更可能）
+// store:'both'=全店舗共通, 'takamatsu'=高松店のみ
 const STAFF_LIST=[
-  {id:'staff1', name:'スタッフ1', emoji:'👨‍💼', store:'takamatsu'},
-  {id:'staff2', name:'スタッフ2', emoji:'👨‍💼', store:'takamatsu'},
-  {id:'staff3', name:'スタッフ3', emoji:'👨‍💼', store:'takamatsu'},
+  {id:'test',      name:'テスト', emoji:'👨‍💼', store:'both'},
 ];
-let currentStaff=localStorage.getItem('bdc_staff')||null;
-let currentStore='takamatsu';
+let currentStaff=localStorage.getItem('bd_staff')||null;
+let currentStore=localStorage.getItem('bd_store')||'takamatsu';
 let currentVehicleId=null; // 現在開いている車両ID
 
 // ===== Claude APIキー =====
-let CLAUDE_API_KEY = localStorage.getItem('bdc_claude_key') || '';
+let CLAUDE_API_KEY = localStorage.getItem('bd_claude_key') || '';
 
 // ===== APIキー設定UI =====
 function openApiKeySetting(){
@@ -1065,7 +1120,7 @@ function saveApiKey(){
     return;
   }
   CLAUDE_API_KEY=val;
-  localStorage.setItem('bdc_claude_key',val);
+  localStorage.setItem('bd_claude_key',val);
   document.getElementById('apiKeyOverlay').classList.remove('show');
   updateSmAiBtn();
   showToast('✓ Claude AIキーを保存しました');
@@ -1087,36 +1142,37 @@ function updateSmAiBtn(){
 // 旧AIカメラフロー変数（削除済み）
 
 function initLogin(){
-  // 高松店のみ: 店舗選択スキップ、スタッフ選択を即表示
-  currentStore='takamatsu';
-  showStep2('takamatsu');
+  // 常にSTEP1（店舗選択）から開始
+  showStep1();
 }
 function showStep1(){
-  // 1店舗のため使用しない
+  document.getElementById('loginStep1').style.display='flex';
+  document.getElementById('loginStep2').classList.remove('active');
 }
 function selectStore(store){
-  currentStore='takamatsu';
-  showStep2('takamatsu');
+  currentStore=store;
+  localStorage.setItem('bd_store',store);
+  showStep2(store);
 }
 function showStep2(store){
   document.getElementById('loginStep1').style.display='none';
   document.getElementById('loginStep2').classList.add('active');
   const badge=document.getElementById('loginStoreBadge');
-  badge.textContent='高松店';
+  badge.textContent='🍊 高松店';
   const grid=document.getElementById('staffGrid');
-  const filtered=STAFF_LIST;
+  const filtered=STAFF_LIST.filter(s=>s.store==='both'||s.store===store);
   grid.innerHTML=filtered.map(s=>`
     <button class="login-btn" onclick="selectStaff('${s.id}','${s.name}')">
       <div class="avatar">${s.emoji}</div>${s.name}
     </button>`).join('');
 }
 function backToStep1(){
-  // 1店舗のため使用しない
+  showStep1();
 }
 function selectStaff(id,name){
   currentStaff=name;
-  localStorage.setItem('bdc_staff',name);
-  localStorage.setItem('bdc_store',currentStore);
+  localStorage.setItem('bd_staff',name);
+  localStorage.setItem('bd_store',currentStore);
   updateStaffHeader();
   goto('sm');
   initPresence();
@@ -1152,31 +1208,26 @@ async function loadVehicles(){
   }
   try{
     let vehicles=[];
-    // 高松店: vehicle_twinsのみ（独立DB）
-    const {data:twins}=await sb.from('vehicle_twins').select('*').eq('store','takamatsu').order('id');
-    const twMap={};(twins||[]).forEach(t=>twMap[t.id]=t);
-    vehicles=(twins||[]).map(tw=>({
-      id:tw.id,
-      status:tw.status||'ready',
-      current_damages:tw.current_damages||[],
-      current_resv_no:tw.current_resv_no||null,
-      current_customer:tw.current_customer||null,
-      current_resv:null,
-      last_check_at:tw.last_check_at||null,
-      last_check_staff:tw.last_check_staff||null,
-      last_event_id:tw.last_event_id||null,
-      odometer:tw.odometer||0,
-      rental_count:tw.rental_count||0,
-      vehicles:{name:tw.id,plate_no:tw.id,code:tw.id,class_id:'OTH'}
+    // 高松: vehicle_twins のみから取得（車両マスタは未設定）
+    const {data:twins}=await sb.from('vehicle_twins')
+      .select('id,status,current_damages,current_resv_no,current_customer,last_check_at,last_check_staff,last_event_id,odometer,rental_count')
+      .eq('store','takamatsu');
+    vehicles=(twins||[]).map(t=>({
+      id:t.id,
+      status:t.status||'ready',
+      current_damages:t.current_damages||[],
+      current_resv_no:t.current_resv_no||null,
+      current_customer:t.current_customer||null,
+      last_check_at:t.last_check_at||null,
+      last_check_staff:t.last_check_staff||null,
+      last_event_id:t.last_event_id||null,
+      odometer:t.odometer||0,
+      rental_count:t.rental_count||0,
+      vehicles:{name:t.id,plate_no:'',code:t.id,class_id:'OTH'}
     }));
-    const vcResvMap={};
     vehiclesCache=vehicles;
     renderVehicleList(vehiclesCache,currentStore);
     updateSmStats(vehiclesCache);
-    // vehicle_twinsが'out'なのに予約がない車両をDBでもreadyにクリーンアップ（バックグラウンド）
-    vehicles.filter(v=>twMap[v.id]?.status==='out'&&!vcResvMap[v.id]).forEach(v=>{
-      sb.from('vehicle_twins').update({status:'ready',current_resv_no:null,current_customer:null}).eq('id',v.id).then(()=>console.log('[cleanup] reset',v.id,'to ready'));
-    });
     const storeLabel='高松店';
     const el=document.getElementById('smHdStore');
     if(el) el.textContent=`${storeLabel} — ${vehicles.length}台`;
@@ -1186,40 +1237,14 @@ async function loadVehicles(){
   }
 }
 
-// ===== クラス定義 =====
-const NAHA_CLASS_DEF={
-  'A':{name:'Aクラス',label:'アルファード'},
-  'B':{name:'Bクラス',label:'ノアH / ヴォクシー / セレナH / アルファードM / ヴェルファイア'},
-  'C':{name:'Cクラス',label:'ライズ / ヤリスクロス（コンパクトSUV）'},
-  'D':{name:'Dクラス',label:'ノアM / エスクァイア / セレナM（ガソリンミニバン）'},
-  'F':{name:'Fクラス',label:'アクア / ノート / ヴィッツ（コンパクト）'},
-  'H':{name:'Hクラス',label:'プリウス / プリウスα（ハイブリッドセダン）'},
-};
-const SPK_CLASS_DEF={
-  'LUX':{name:'高級ミニバン',label:'アルファード / ヴェルファイア'},
-  'MPV':{name:'ミニバン',label:'デリカD5 / ノア / ステップワゴン'},
-  'SUV':{name:'SUV',label:'CX-5 / ハリアー'},
-  'CSUV':{name:'コンパクトSUV',label:'CX-3 / ロッキー'},
-  'SDN':{name:'セダン',label:'アクセラ / カローラフィールダー'},
-  'CPT':{name:'コンパクト',label:'ソリオ'},
+// ===== クラス定義（高松店 — 後で追加） =====
+const TKM_CLASS_DEF={
   'OTH':{name:'その他',label:''},
 };
-function spkClass(name){
-  if(!name) return 'OTH';
-  // 高級ミニバン
-  if(name.includes('アルファード')||name.includes('ヴェルファイア')) return 'LUX';
-  // ミニバン
-  if(name.includes('デリカ')||name.includes('ノア')||name.includes('ステップワゴン')) return 'MPV';
-  // SUV（大型）
-  if(name.includes('CX-5')||name.includes('ハリアー')) return 'SUV';
-  // コンパクトSUV
-  if(name.includes('CX-3')||name.includes('ロッキー')) return 'CSUV';
-  // セダン
-  if(name.includes('アクセラ')||name.includes('カローラ')) return 'SDN';
-  // コンパクト
-  if(name.includes('ソリオ')) return 'CPT';
-  return 'OTH';
-}
+// 店舗別クラス定義を統一参照
+const NAHA_CLASS_DEF=TKM_CLASS_DEF; // 互換用
+const SPK_CLASS_DEF=TKM_CLASS_DEF;  // 互換用
+function spkClass(name){ return 'OTH'; }
 
 function renderVehicleList(vehicles, store){
   const list=document.getElementById('smList');
@@ -1228,8 +1253,8 @@ function renderVehicleList(vehicles, store){
     return;
   }
   // store引数がなければグローバル変数を使う
-  const st2='takamatsu';
-  const classDef=SPK_CLASS_DEF;
+  const st2=store||currentStore||'takamatsu';
+  const classDef=TKM_CLASS_DEF;
   // クラス順にグループ化
   const groups={};
   vehicles.forEach(v=>{
@@ -1237,7 +1262,7 @@ function renderVehicleList(vehicles, store){
     if(!groups[cid]) groups[cid]=[];
     groups[cid].push(v);
   });
-  const classOrder=['LUX','MPV','SUV','CSUV','SDN','CPT','OTH'];
+  const classOrder=['OTH'];
 
   let html='';
   classOrder.forEach(cid=>{
@@ -1523,7 +1548,7 @@ function initPresence(){
   if(presenceCh){ try{sb.removeChannel(presenceCh);}catch(e){} }
   // ランダムサフィックスで同一スタッフの複数デバイス対応
   const myKey=currentStaff+'_'+Math.random().toString(36).slice(2,6);
-  presenceCh=sb.channel('bdc-presence-v1',{config:{presence:{key:myKey}}});
+  presenceCh=sb.channel('bd-presence-v1',{config:{presence:{key:myKey}}});
   presenceCh
     .on('presence',{event:'sync'},()=>{
       const state=presenceCh.presenceState();
@@ -1604,7 +1629,7 @@ async function reloadS0(){
 }
 
 function subscribeRealtime(){
-  sb.channel('bdc-vehicle-twins-all')
+  sb.channel('bd-vehicle-twins-all')
     .on('postgres_changes',{event:'INSERT',schema:'public',table:'vehicle_twins'},payload=>{
       handleVehicleTwinChange(payload.new,'insert');
     })
@@ -1901,6 +1926,8 @@ function renderMapInto(viewId, legendId, damages, newIds, clickable){
   const H=view.clientHeight||view.offsetHeight||0;
   view.innerHTML=INSP_SVG;
   const damagedZoneIds=new Set();
+  // 同ゾーン内の傷インデックスをカウント（ピンオフセット用）
+  const zoneCountMap={};
 
   (damages||[]).forEach(d=>{
     let zone=null;
@@ -1913,12 +1940,20 @@ function renderMapInto(viewId, legendId, damages, newIds, clickable){
     if(!zone) return;
     damagedZoneIds.add(zone.id);
 
+    // 同ゾーン内の何番目かをカウント（オフセット計算用）
+    if(!zoneCountMap[zone.id]) zoneCountMap[zone.id]={count:0};
+    const pinIdx=zoneCountMap[zone.id].count++;
+
     const isNew=newIds&&newIds.has(d.id);
     const c=isNew?'#ff3333':dmgColor(d);
     const pin=document.createElement('div');
     pin.className='ipin'+(clickable?' clickable':'');
-    // PCでもピンが正確な位置に来るよう、SVG描画領域を考慮した座標補正
-    const p=pinPct(zone.cx, zone.cy, W, H);
+    // 同ゾーン複数ピンは円形にオフセットして重ならないように表示
+    const offsetR=pinIdx>0?4.5:0; // 2件目以降はずらす
+    const offsetAngle=(pinIdx*137.5)*(Math.PI/180); // 黄金角でばらけさせる
+    const oxPct=pinIdx>0?offsetR*Math.cos(offsetAngle):0;
+    const oyPct=pinIdx>0?offsetR*Math.sin(offsetAngle):0;
+    const p=pinPct(zone.cx+oxPct, zone.cy+oyPct, W, H);
     pin.style.cssText=`left:${p.l}%;top:${p.t}%;`;
     pin.dataset.dmgId=d.id;
     const newBadge=isNew?`<div class="ipin-new">NEW</div>`:'';
@@ -2037,7 +2072,7 @@ function goto(id){
   if(id==='login'){ updatePresence('login',null); }
   if(id==='login'){
     currentStaff=null;
-    localStorage.removeItem('bdc_staff');
+    localStorage.removeItem('bd_staff');
     initLogin();
   }
 }
@@ -2315,11 +2350,43 @@ function tapZone(zoneId){
     return z&&z.id===zoneId;
   });
   if(dmgsHere.length>0){
-    openDmgEdit(dmgsHere[0].id);
+    // 傷が1件以上ある場合 → リストシートを表示（追加・編集どちらも可能）
+    openZoneDmgList(zoneId, dmgsHere);
   } else {
     const name=ZONE_ID_TO_NAME[zoneId];
     if(name) openAddDmgSheet(name);
   }
+}
+
+// ===== ゾーン傷リストシート =====
+function openZoneDmgList(zoneId, dmgsHere){
+  const zoneName=ZONE_ID_TO_NAME[zoneId]||dmgsHere[0]?.location||'不明';
+  const typeNames={scratch:'擦り傷',dent:'凹み',chip:'塗装欠け',stone_chip:'飛び石',crack:'ひび割れ',break:'破損',stain:'汚れ・シミ',burn:'焦げ痕',rust:'錆び',missing:'部品欠損',tire_flat:'パンク',tire_wear:'タイヤ摩耗',other:'その他'};
+  const sevNames={minor:'軽微',moderate:'中程度',major:'重大'};
+  document.getElementById('zdlZoneName').textContent=zoneName;
+  document.getElementById('zdlCount').textContent=dmgsHere.length+'件の傷が記録されています';
+  document.getElementById('zdlAddBtn').onclick=()=>{ closeZoneDmgList(); openAddDmgSheet(zoneName); };
+  const list=document.getElementById('zdlList');
+  list.innerHTML=dmgsHere.map(d=>{
+    const c=dmgColor(d);
+    const sev=d.severity||d.type;
+    const sizeTxt=d.size?' / '+d.size:'';
+    const descTxt=(d.desc&&d.desc!=='手動追加')?' — '+d.desc:'';
+    return `<div style="background:#f8fafd;border:1px solid #dde8f4;border-radius:12px;padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:10px;">
+      <div style="width:12px;height:12px;border-radius:50%;background:${c};flex-shrink:0;border:1.5px solid ${c}88;"></div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:700;color:#1a2840;">${typeNames[d.type]||d.type}</div>
+        <div style="font-size:10px;color:#7799bb;margin-top:2px;">${sevNames[sev]||sev}${sizeTxt}${descTxt}</div>
+        <div style="font-size:9px;color:#aabbcc;margin-top:2px;">${d.addedAt||''}${d.addedBy?' — '+d.addedBy:''}</div>
+      </div>
+      <button onclick="closeZoneDmgList();openDmgEdit('${d.id}')" style="padding:7px 13px;border-radius:8px;border:1.5px solid #4488cc;background:#eef4fc;color:#2266cc;font-size:11px;font-weight:700;cursor:pointer;flex-shrink:0;touch-action:manipulation;">詳細</button>
+    </div>`;
+  }).join('');
+  document.getElementById('zdlOverlay').classList.add('show');
+}
+function closeZoneDmgList(e){
+  if(e&&e.target!==document.getElementById('zdlOverlay')) return;
+  document.getElementById('zdlOverlay').classList.remove('show');
 }
 
 // ===== 既存傷ピンタップ → 編集シート =====
@@ -3148,12 +3215,12 @@ async function markVehicleReady(){
   }catch(e){showToast('❌ 変更エラー: '+e.message.slice(0,40));}
 }
 
-// ===== 本日の予約を取得（札幌のみ）=====
+// ===== 本日の予約を取得 =====
 let sc0ResvData=null; // SC0で取得した予約データ
 
 async function fetchReservationForVehicle(vehicleId, mode){
   // mode: 'checkout' = 本日以降の直近貸出予約, 'return' = 現在貸出中（返却日が今日以降）
-  // 高松店は予約連動なし
+  // 高松店: 予約連動テーブル未設定
   return null;
   try{
     // 1. fleetテーブルからこの車両に配車されている予約IDを全取得
